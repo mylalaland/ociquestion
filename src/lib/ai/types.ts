@@ -1,4 +1,4 @@
-export type QuestionType = 'CSAT' | 'MULTIPLE_CHOICE' | 'SHORT_ANSWER';
+export type QuestionType = 'CSAT' | 'MULTIPLE_CHOICE' | 'SHORT_ANSWER' | 'ESSAY';
 
 export interface QuizQuestion {
   id: string;
@@ -21,3 +21,18 @@ export interface AIProviderConfig {
   apiKey: string;
   modelName?: string;
 }
+
+// Point configuration per question type
+export interface PointConfig {
+  MULTIPLE_CHOICE: number;
+  SHORT_ANSWER: number;
+  ESSAY: number;
+  CSAT: number;
+}
+
+export const DEFAULT_POINT_CONFIG: PointConfig = {
+  MULTIPLE_CHOICE: 10,
+  SHORT_ANSWER: 10,
+  ESSAY: 15,
+  CSAT: 20,
+};

@@ -18,12 +18,14 @@ export default function CameraPreview({ onCapture, onClose }: CameraPreviewProps
   const [showFlash, setShowFlash] = useState(false);
 
   useEffect(() => {
+    let currentStream: MediaStream | null = null;
     async function setupCamera() {
       try {
         const s = await navigator.mediaDevices.getUserMedia({ 
           video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, 
           audio: false 
         });
+        currentStream = s;
         setStream(s);
         if (videoRef.current) {
           videoRef.current.srcObject = s;
@@ -38,8 +40,15 @@ export default function CameraPreview({ onCapture, onClose }: CameraPreviewProps
     setupCamera();
 
     return () => {
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => {
+           track.stop();
+        });
+      }
       if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+        stream.getTracks().forEach(track => {
+           track.stop();
+        });
       }
     };
   }, []);

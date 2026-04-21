@@ -3,7 +3,7 @@ export interface ExtractedPage {
   text: string;
 }
 
-export async function extractTextFromPdf(file: File, maxPages: number = 20): Promise<ExtractedPage[]> {
+export async function extractTextFromPdf(file: File, startPage: number = 1, endPage?: number): Promise<ExtractedPage[]> {
   const pdfjs = await import('pdfjs-dist');
   pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
@@ -12,9 +12,10 @@ export async function extractTextFromPdf(file: File, maxPages: number = 20): Pro
   const pdf = await loadingTask.promise;
   
   const results: ExtractedPage[] = [];
-  const pageCount = Math.min(pdf.numPages, maxPages);
+  const start = Math.max(1, startPage);
+  const end = endPage ? Math.min(pdf.numPages, endPage) : Math.min(pdf.numPages, start + 19); // Default max 20 pages from start if no endPage specified
 
-  for (let i = 1; i <= pageCount; i++) {
+  for (let i = start; i <= end; i++) {
     const page = await pdf.getPage(i);
     const content = await page.getTextContent();
     const strings = content.items.map((item: any) => item.str);

@@ -14,7 +14,7 @@ const QUIZ_SCHEMA: ResponseSchema = {
         type: SchemaType.OBJECT,
         properties: {
           id: { type: SchemaType.STRING },
-          type: { type: SchemaType.STRING, enum: ["CSAT", "MULTIPLE_CHOICE", "SHORT_ANSWER"] } as any,
+          type: { type: SchemaType.STRING, enum: ["CSAT", "MULTIPLE_CHOICE", "SHORT_ANSWER", "ESSAY"] } as any,
           question: { type: SchemaType.STRING },
           options: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
           correctAnswer: { type: SchemaType.STRING },
@@ -52,8 +52,6 @@ export class GeminiProvider {
 
   async getAvailableModels(): Promise<string[]> {
     try {
-      // Sanitize: remove any existing 'models/' prefix for the REST URL if we were using it in a different way,
-      // but here we just need the key.
       const sanitizedKey = this.genAI.apiKey;
       const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${sanitizedKey}`;
       const response = await fetch(url);
@@ -62,7 +60,6 @@ export class GeminiProvider {
         throw new Error(errorData.error?.message || "모델 목록을 가져오지 못했습니다.");
       }
       const data = await response.json();
-      // Filter for models that support generateContent
       return data.models
         .filter((m: any) => m.supportedGenerationMethods.includes("generateContent"))
         .map((m: any) => m.name.replace("models/", ""));
@@ -79,7 +76,6 @@ export class GeminiProvider {
         return await fn();
       } catch (error: any) {
         lastError = error;
-        // Retry on 503 (Service Unavailable) or 429 (Too Many Requests)
         const isRetryable = error.message?.includes("503") || error.message?.includes("429") || error.status === 503 || error.status === 429;
         if (isRetryable && i < maxRetries - 1) {
           const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
@@ -108,9 +104,11 @@ export class GeminiProvider {
         The content may be provided as text below and/or as one or more accompanying images.
         The overall difficulty of the questions should be: [${difficulty}].
         The quiz should include the following types as evenly distributed as possible: ${types.join(", ")}.
+        
         For "CSAT" (수능형), create a complex logical reasoning question typical of academic entrance exams.
         For "MULTIPLE_CHOICE" (객관식), create 5-option multiple choice questions.
-        For "SHORT_ANSWER" (단답형/서술형), create questions where the answer is a specific phrase or sentence.
+        For "SHORT_ANSWER" (단답형), create questions where the answer is a specific word or short phrase (1~3 words max).
+        For "ESSAY" (서술형), create questions that require a longer, explanatory answer (1~3 sentences). The correctAnswer should be a model answer.
         
         For each question, accurately quote the 'sourceContext' (the exact sentence or paragraph from the text that provides the answer).
         All content should be in Korean as the target users are Korean students.
