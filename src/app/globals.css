@@ -239,16 +239,43 @@ body {
 }
 
 /* Deep High-contrast Colors for badging and numbers in light mode */
-.light .text-emerald-400 { color: #166534 !important; }
-.light .text-sky-400 { color: #0369a1 !important; }
-.light .text-amber-400 { color: #9a3412 !important; }
-.light .text-indigo-400 { color: #3730a3 !important; }
-.light .text-rose-400 { color: #9f1239 !important; }
+.light .text-emerald-400,
+.light .text-emerald-300,
+.light .text-emerald-200,
+.light .text-emerald-100 { color: #166534 !important; }
+
+.light .text-sky-400,
+.light .text-sky-300,
+.light .text-sky-200,
+.light .text-sky-100 { color: #0369a1 !important; }
+
+.light .text-amber-400,
+.light .text-amber-300,
+.light .text-amber-200,
+.light .text-amber-100 { color: #b45309 !important; }
+
+.light .text-indigo-400,
+.light .text-indigo-300,
+.light .text-indigo-200,
+.light .text-indigo-100 { color: #3730a3 !important; }
+
+.light .text-rose-400,
+.light .text-rose-300,
+.light .text-rose-200,
+.light .text-rose-100 { color: #9f1239 !important; }
 
 /* Transparencies for status colors in light mode */
-.light .bg-emerald-500\/10 { background-color: #dcfce7 !important; color: #166534 !important; }
-.light .bg-sky-500\/10 { background-color: #e0f2fe !important; color: #0369a1 !important; }
-.light .bg-amber-500\/10 { background-color: #fef3c7 !important; color: #9a3412 !important; }
+.light .bg-emerald-500\/10,
+.light .bg-emerald-500\/20,
+.light .bg-emerald-500\/30 { background-color: #dcfce7 !important; color: #166534 !important; border-color: #86efac !important; }
+
+.light .bg-sky-500\/10,
+.light .bg-sky-500\/20,
+.light .bg-sky-500\/30 { background-color: #e0f2fe !important; color: #0369a1 !important; border-color: #7dd3fc !important; }
+
+.light .bg-amber-500\/10,
+.light .bg-amber-500\/20,
+.light .bg-amber-500\/30 { background-color: #fef3c7 !important; color: #b45309 !important; border-color: #fde047 !important; }
 
 /* Hover transitions inside light mode */
 .light .hover\:bg-white\/10:hover {
