@@ -89,6 +89,13 @@ export default function Home() {
   const [pointLogs, setPointLogs] = useState<PointLog[]>([]);
   const [showPointAnalysis, setShowPointAnalysis] = useState(false);
   
+  // ─── Guardian Locks & Target Goals ───
+  const [lockRetry, setLockRetry] = useState(false);
+  const [lockFontSize, setLockFontSize] = useState(false);
+  const [lockContextTiming, setLockContextTiming] = useState(false);
+  const [targetPoints, setTargetPoints] = useState(1000);
+  const [pointModalTab, setPointModalTab] = useState<'goal' | 'chart' | 'logs'>('goal');
+  
   // ─── Password Protection ───
   const [parentPasswordHash, setParentPasswordHash] = useState<string | null>(null);
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
@@ -202,6 +209,17 @@ export default function Home() {
       setTotalPoints(parseInt(savedTotalPoints));
     }
     localStorage.setItem('OCI_QUIZ_LAST_MONTH', currentMonth);
+
+    const savedLockRetry = localStorage.getItem('OCI_QUIZ_LOCK_RETRY');
+    const savedLockFont = localStorage.getItem('OCI_QUIZ_LOCK_FONT_SIZE');
+    const savedLockTiming = localStorage.getItem('OCI_QUIZ_LOCK_CONTEXT_TIMING');
+    const savedTargetPoints = localStorage.getItem('OCI_QUIZ_TARGET_POINTS');
+
+    if (savedLockRetry) setLockRetry(savedLockRetry === 'true');
+    if (savedLockFont) setLockFontSize(savedLockFont === 'true');
+    if (savedLockTiming) setLockContextTiming(savedLockTiming === 'true');
+    if (savedTargetPoints) setTargetPoints(parseInt(savedTargetPoints));
+
     setPointLogs(getPointLogs());
   }, []);
 
@@ -245,6 +263,13 @@ export default function Home() {
     localStorage.setItem('OCI_QUIZ_AUTO_RESET', autoResetPoints.toString());
     localStorage.setItem('OCI_QUIZ_TOTAL_POINTS', totalPoints.toString());
   }, [passThreshold, pointConfig, autoResetPoints, totalPoints]);
+
+  useEffect(() => {
+    localStorage.setItem('OCI_QUIZ_LOCK_RETRY', lockRetry.toString());
+    localStorage.setItem('OCI_QUIZ_LOCK_FONT_SIZE', lockFontSize.toString());
+    localStorage.setItem('OCI_QUIZ_LOCK_CONTEXT_TIMING', lockContextTiming.toString());
+    localStorage.setItem('OCI_QUIZ_TARGET_POINTS', targetPoints.toString());
+  }, [lockRetry, lockFontSize, lockContextTiming, targetPoints]);
 
   // ═══════════════════════════════════════
   // Handlers
@@ -828,10 +853,17 @@ export default function Home() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <div className="glass px-3 py-1.5 rounded-xl flex items-center gap-2">
+              <button 
+                onClick={() => {
+                  setShowPointAnalysis(true);
+                  setShowHistory(false);
+                  setShowSettings(false);
+                }}
+                className="glass px-3 py-1.5 rounded-xl flex items-center gap-2 hover:bg-white/10 active:scale-95 transition-all text-left focus:outline-none"
+              >
                 <span className="text-lg">🏆</span>
                 <span className="text-sky-400 font-bold text-sm">{totalPoints} P</span>
-              </div>
+              </button>
             </div>
           </div>
         </nav>
@@ -931,10 +963,17 @@ export default function Home() {
             <span className="font-bold shimmer-text text-sm tracking-wider">라라퀴즈</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="glass px-3 py-1.5 rounded-xl flex items-center gap-2">
+            <button 
+              onClick={() => {
+                setShowPointAnalysis(true);
+                setShowHistory(false);
+                setShowSettings(false);
+              }}
+              className="glass px-3 py-1.5 rounded-xl flex items-center gap-2 hover:bg-white/10 active:scale-95 transition-all text-left focus:outline-none"
+            >
               <span className="text-lg">🏆</span>
               <span className="text-sky-400 font-bold text-sm">{totalPoints} P</span>
-            </div>
+            </button>
             <button 
               onClick={async () => {
                  if (!showHistory) await loadHistory();
@@ -1002,9 +1041,9 @@ export default function Home() {
           >
             <div className="bg-slate-900/95 backdrop-blur-2xl p-6 md:p-8 rounded-[32px] border border-slate-700 w-full max-w-lg shadow-2xl relative max-h-[85vh] flex flex-col text-slate-100">
               {/* Header */}
-              <div className="flex justify-between items-center mb-6 border-b border-slate-800 pb-4">
+              <div className="flex justify-between items-center mb-6 border-b border-slate-800 pb-4 shrink-0">
                 <h2 className="text-2xl font-bold flex items-center gap-2 text-white">
-                  <span className="text-2xl">🏆</span> 포인트 분석 및 리포트
+                  <span className="text-2xl">🏆</span> 포인트 리포트 & 분석
                 </h2>
                 <button 
                   onClick={() => setShowPointAnalysis(false)} 
@@ -1014,134 +1053,307 @@ export default function Home() {
                 </button>
               </div>
 
+              {/* 3-Tab Selector */}
+              <div className="flex bg-slate-950/60 p-1 rounded-2xl mb-6 border border-slate-800 shrink-0">
+                <button 
+                  onClick={() => setPointModalTab('goal')}
+                  className={`flex-1 py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${pointModalTab === 'goal' ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/20' : 'text-slate-400 hover:text-white'}`}
+                >
+                  목표 & 요약
+                </button>
+                <button 
+                  onClick={() => setPointModalTab('chart')}
+                  className={`flex-1 py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${pointModalTab === 'chart' ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/20' : 'text-slate-400 hover:text-white'}`}
+                >
+                  성과 분석
+                </button>
+                <button 
+                  onClick={() => setPointModalTab('logs')}
+                  className={`flex-1 py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${pointModalTab === 'logs' ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/20' : 'text-slate-400 hover:text-white'}`}
+                >
+                  상세 이력
+                </button>
+              </div>
+
               {/* Scrollable Container */}
               <div className="overflow-y-auto custom-scrollbar flex-1 pr-1 space-y-6">
                 
-                {/* Stats Summary Card */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-slate-800/40 border border-slate-800 p-4 rounded-2xl text-center">
-                    <span className="text-slate-400 text-xs block mb-1">현재 보유 포인트</span>
-                    <strong className="text-sky-400 text-2xl md:text-3xl font-black font-mono">{totalPoints} P</strong>
-                  </div>
-                  <div className="bg-slate-800/40 border border-slate-800 p-4 rounded-2xl text-center">
-                    <span className="text-slate-400 text-xs block mb-1">총 퀴즈 참여 횟수</span>
-                    <strong className="text-indigo-400 text-2xl md:text-3xl font-black font-mono">{pointLogs.length}회</strong>
-                  </div>
-                </div>
-
-                {/* Performance Analytics */}
-                {pointLogs.length > 0 && (
-                  <div className="bg-slate-800/30 border border-slate-800/60 p-5 rounded-2xl space-y-4">
-                    <h3 className="text-sm font-bold text-slate-300">📈 학습 성취도 요약</h3>
-                    
-                    {/* Average Accuracy Progress Bar */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-slate-400">평균 정답률</span>
-                        <span className="text-emerald-400 font-bold">
+                {/* ─── TAB 1: Goal & Stats Summary ─── */}
+                {pointModalTab === 'goal' && (
+                  <div className="space-y-6">
+                    {/* Stats Grid */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-slate-800/40 border border-slate-800 p-3.5 rounded-2xl text-center">
+                        <span className="text-slate-400 text-[10px] block mb-1">보유 포인트</span>
+                        <strong className="text-sky-400 text-lg md:text-xl font-black font-mono">{totalPoints} P</strong>
+                      </div>
+                      <div className="bg-slate-800/40 border border-slate-800 p-3.5 rounded-2xl text-center">
+                        <span className="text-slate-400 text-[10px] block mb-1">총 참여 횟수</span>
+                        <strong className="text-indigo-400 text-lg md:text-xl font-black font-mono">{pointLogs.length}회</strong>
+                      </div>
+                      <div className="bg-slate-800/40 border border-slate-800 p-3.5 rounded-2xl text-center">
+                        <span className="text-slate-400 text-[10px] block mb-1">평균 정답률</span>
+                        <strong className="text-emerald-400 text-lg md:text-xl font-black font-mono">
                           {(() => {
                             const totalCorrect = pointLogs.reduce((sum, log) => sum + log.score, 0);
                             const totalQuestions = pointLogs.reduce((sum, log) => sum + log.totalQuestions, 0);
                             return totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0;
                           })()}%
-                        </span>
-                      </div>
-                      <div className="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-gradient-to-r from-emerald-500 to-sky-500 rounded-full" 
-                          style={{ 
-                            width: `${(() => {
-                              const totalCorrect = pointLogs.reduce((sum, log) => sum + log.score, 0);
-                              const totalQuestions = pointLogs.reduce((sum, log) => sum + log.totalQuestions, 0);
-                              return totalQuestions > 0 ? (totalCorrect / totalQuestions) * 100 : 0;
-                            })()}%` 
-                          }}
-                        />
+                        </strong>
                       </div>
                     </div>
 
-                    {/* Points Goal Progress Bar */}
-                    <div className="space-y-1.5 pt-2 border-t border-slate-800/60">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-slate-400">목표 보상 포인트 (1000 P 기준)</span>
-                        <span className="text-sky-400 font-bold">{Math.min(100, Math.round((totalPoints / 1000) * 100))}%</span>
-                      </div>
-                      <div className="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-gradient-to-r from-sky-500 to-indigo-500 rounded-full" 
-                          style={{ width: `${Math.min(100, (totalPoints / 1000) * 100)}%` }}
-                        />
-                      </div>
-                      <span className="text-[10px] text-slate-500 block">
-                        {totalPoints >= 1000 
-                          ? "🎉 축하합니다! 보상 목표를 달성했습니다! 보호자에게 보상을 요청하세요!" 
-                          : `🎁 다음 보상 기준인 1000 P까지 ${1000 - totalPoints} P 남았습니다!`}
-                      </span>
-                    </div>
+                    {/* Progress with Motivation message */}
+                    {(() => {
+                      const progressPercent = Math.min(100, Math.round((totalPoints / targetPoints) * 100));
+                      let motivationMsg = "";
+                      if (progressPercent >= 100) {
+                        motivationMsg = "🎉 축하합니다! 최종 목표 포인트를 달성했어요! 보호자님께 약속된 멋진 보상을 당당하게 요청하세요! 🎁";
+                      } else if (progressPercent >= 80) {
+                        motivationMsg = `🎁 목표인 ${targetPoints} P까지 단 ${targetPoints - totalPoints} P 남았습니다! 마지막 골인이 바로 코앞이에요! 힘내세요! 🏃‍♂️`;
+                      } else if (progressPercent >= 50) {
+                        motivationMsg = "🔥 목표의 절반을 성공적으로 돌파했습니다! 이 기세를 이어 약속한 칭찬 보상까지 쭉 달려봅시다!";
+                      } else if (progressPercent >= 20) {
+                        motivationMsg = "🚀 든든하게 포인트가 누적되고 있습니다! 매일 조금씩 학습하고 퀴즈를 풀며 실력과 배지를 늘려가요!";
+                      } else {
+                        motivationMsg = "💪 첫 출발을 내딛었습니다! 매일 성실히 독서/공부하며 목표 포인트를 향해 화이팅하세요! 📚";
+                      }
+
+                      return (
+                        <div className="bg-slate-800/30 border border-slate-800/60 p-5 rounded-3xl space-y-4">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-9 h-9 bg-sky-500/10 rounded-xl flex items-center justify-center shrink-0">
+                              <span className="text-lg">🎯</span>
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-bold text-slate-200">목표 보상 성취도</h4>
+                              <p className="text-[11px] text-slate-400">지정한 목표 점수 기준 획득 현황</p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-3">
+                            <div className="flex justify-between text-xs font-semibold">
+                              <span className="text-slate-300">목표 설정: {targetPoints} P</span>
+                              <span className="text-sky-400 font-mono text-sm">{progressPercent}%</span>
+                            </div>
+                            <div className="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800/50 p-[2px]">
+                              <div 
+                                className="h-full bg-gradient-to-r from-sky-400 via-indigo-400 to-sky-500 rounded-full transition-all duration-500 ease-out" 
+                                style={{ width: `${progressPercent}%` }}
+                              />
+                            </div>
+                            <p className="text-xs text-sky-400 bg-sky-500/10 border border-sky-500/20 p-3.5 rounded-2xl leading-relaxed font-semibold">
+                              {motivationMsg}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
 
-                {/* Point Logs list */}
-                <div className="space-y-3">
-                  <h3 className="text-sm font-bold text-slate-300">📋 포인트 적립 내역</h3>
-                  
-                  {pointLogs.length === 0 ? (
-                    <div className="text-center text-slate-500 py-12 bg-slate-800/20 border border-dashed border-slate-800 rounded-2xl">
-                      아직 적립된 포인트 내역이 없습니다.<br/>
-                      첫 퀴즈를 풀고 포인트를 모아보세요! 🚀
-                    </div>
-                  ) : (
-                    <div className="space-y-2 max-h-[35vh] overflow-y-auto pr-1 custom-scrollbar">
-                      {pointLogs.map((log) => {
-                        const dateObj = new Date(log.date);
-                        const dateFormatted = `${dateObj.getMonth() + 1}월 ${dateObj.getDate()}일 ${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}`;
-                        
-                        return (
-                          <div 
-                            key={log.id} 
-                            className="p-3.5 bg-slate-800/40 border border-slate-800 hover:border-slate-700/60 rounded-xl flex items-center justify-between gap-3 transition-colors"
-                          >
-                            <div className="space-y-1 min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5">
-                                <span className="px-1.5 py-0.5 bg-sky-500/10 border border-sky-500/20 text-sky-400 text-[10px] font-bold rounded">
-                                  {log.subject || '과목 없음'}
-                                </span>
-                                <span className="text-[10px] text-slate-500 font-mono">
-                                  {dateFormatted}
-                                </span>
+                {/* ─── TAB 2: Performance Charts (Pure SVG) ─── */}
+                {pointModalTab === 'chart' && (
+                  <div className="space-y-6">
+                    {pointLogs.length === 0 ? (
+                      <div className="text-center text-slate-500 py-16 bg-slate-800/10 border border-dashed border-slate-800 rounded-2xl">
+                        분석에 필요한 퀴즈 결과 데이터가 부족합니다.<br/>
+                        문제를 해결하고 포인트를 먼저 획득하세요!
+                      </div>
+                    ) : (
+                      <>
+                        {/* 1. Subject Bar Chart */}
+                        <div className="bg-slate-800/30 border border-slate-800/60 p-5 rounded-3xl space-y-4">
+                          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">📚 과목별 획득 포인트 분포</h4>
+                          {(() => {
+                            const pointsBySubject = pointLogs.reduce((acc, log) => {
+                              const sub = log.subject || '과목 없음';
+                              acc[sub] = (acc[sub] || 0) + log.earnedPoints;
+                              return acc;
+                            }, {} as Record<string, number>);
+
+                            const subjectData = Object.entries(pointsBySubject).map(([subject, points]) => ({ subject, points }));
+                            const maxPoints = Math.max(...subjectData.map(d => d.points), 1);
+                            const svgHeight = Math.max(120, subjectData.length * 40 + 20);
+
+                            return (
+                              <svg viewBox={`0 0 400 ${svgHeight}`} className="w-full h-auto text-slate-300">
+                                <defs>
+                                  <linearGradient id="subjectGrad" x1="0" y1="0" x2="1" y2="0">
+                                    <stop offset="0%" stopColor="#38bdf8" />
+                                    <stop offset="100%" stopColor="#818cf8" />
+                                  </linearGradient>
+                                </defs>
+                                {subjectData.map((d, i) => {
+                                  const barWidth = (d.points / maxPoints) * 260;
+                                  const y = i * 40 + 15;
+                                  return (
+                                    <g key={d.subject}>
+                                      {/* Subject label */}
+                                      <text x="5" y={y + 12} fill="#94a3b8" className="text-[10px] font-bold" textAnchor="start">
+                                        {d.subject.slice(0, 7)}
+                                      </text>
+                                      {/* Background Bar */}
+                                      <rect x="75" y={y} width="260" height="16" rx="8" fill="rgba(255,255,255,0.03)" />
+                                      {/* Fill Bar */}
+                                      <motion.rect 
+                                        initial={{ width: 0 }}
+                                        animate={{ width: barWidth }}
+                                        transition={{ duration: 0.8, ease: 'easeOut' }}
+                                        x="75" y={y} height="16" rx="8" fill="url(#subjectGrad)" 
+                                      />
+                                      {/* Points text */}
+                                      <text x="345" y={y + 12} fill="#38bdf8" className="text-[10px] font-black font-mono" textAnchor="start">
+                                        {d.points}P
+                                      </text>
+                                    </g>
+                                  );
+                                })}
+                              </svg>
+                            );
+                          })()}
+                        </div>
+
+                        {/* 2. Cumulative Area Chart */}
+                        <div className="bg-slate-800/30 border border-slate-800/60 p-5 rounded-3xl space-y-4">
+                          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">📈 최근 포인트 누적 성장 추이</h4>
+                          {(() => {
+                            const chronologicalLogs = [...pointLogs]
+                              .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                              .slice(-7);
+
+                            let runningTotal = totalPoints - chronologicalLogs.reduce((sum, log) => sum + log.earnedPoints, 0);
+                            const trendData = chronologicalLogs.map((log) => {
+                              runningTotal += log.earnedPoints;
+                              const dateObj = new Date(log.date);
+                              return {
+                                label: `${dateObj.getMonth() + 1}/${dateObj.getDate()}`,
+                                points: runningTotal
+                              };
+                            });
+
+                            const pointsList = trendData.map(d => d.points);
+                            const minPoints = Math.min(...pointsList, 0);
+                            const maxPoints = Math.max(...pointsList, 100);
+                            const range = maxPoints - minPoints || 1;
+
+                            const getCoords = (index: number, val: number) => {
+                              const x = 45 + (index / (trendData.length - 1)) * 315;
+                              const y = 145 - ((val - minPoints) / range) * 115;
+                              return { x, y };
+                            };
+
+                            const pathCoords = trendData.map((d, i) => getCoords(i, d.points));
+                            const pointsPath = pathCoords.map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x} ${c.y}`).join(' ');
+                            const areaPath = trendData.length > 0 
+                              ? `${pointsPath} L ${pathCoords[pathCoords.length - 1].x} 145 L ${pathCoords[0].x} 145 Z` 
+                              : '';
+
+                            return (
+                              <svg viewBox="0 0 400 180" className="w-full h-auto">
+                                <defs>
+                                  <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.35" />
+                                    <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.0" />
+                                  </linearGradient>
+                                </defs>
+                                {/* Grid lines */}
+                                <line x1="40" y1="145" x2="365" y2="145" stroke="#334155" strokeWidth="1" strokeDasharray="3" />
+                                <line x1="40" y1="87" x2="365" y2="87" stroke="#334155" strokeWidth="0.5" strokeDasharray="3" />
+                                <line x1="40" y1="30" x2="365" y2="30" stroke="#334155" strokeWidth="0.5" strokeDasharray="3" />
+
+                                {trendData.length > 0 && (
+                                  <>
+                                    {/* Area */}
+                                    <path d={areaPath} fill="url(#areaGrad)" />
+                                    {/* Line */}
+                                    <path d={pointsPath} fill="none" stroke="#38bdf8" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                                    
+                                    {/* Dots and Labels */}
+                                    {trendData.map((d, i) => {
+                                      const { x, y } = getCoords(i, d.points);
+                                      return (
+                                        <g key={i}>
+                                          <circle cx={x} cy={y} r="4.5" fill="#38bdf8" stroke="#0f172a" strokeWidth="2.5" />
+                                          <text x={x} y={y - 8} textAnchor="middle" fill="#38bdf8" className="text-[9px] font-black font-mono">{d.points}P</text>
+                                          <text x={x} y="160" textAnchor="middle" fill="#64748b" className="text-[9px] font-semibold">{d.label}</text>
+                                        </g>
+                                      );
+                                    })}
+                                  </>
+                                )}
+                              </svg>
+                            );
+                          })()}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* ─── TAB 3: Chronological Log History ─── */}
+                {pointModalTab === 'logs' && (
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2">📋 상세 포인트 적립 로그</h3>
+                    
+                    {pointLogs.length === 0 ? (
+                      <div className="text-center text-slate-500 py-12 bg-slate-800/20 border border-dashed border-slate-800 rounded-2xl">
+                        아직 적립된 포인트 내역이 없습니다.<br/>
+                        첫 퀴즈를 풀고 포인트를 모아보세요! 🚀
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-[48vh] overflow-y-auto pr-1 custom-scrollbar">
+                        {pointLogs.map((log) => {
+                          const dateObj = new Date(log.date);
+                          const dateFormatted = `${dateObj.getMonth() + 1}월 ${dateObj.getDate()}일 ${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}`;
+                          
+                          return (
+                            <div 
+                              key={log.id} 
+                              className="p-3.5 bg-slate-800/40 border border-slate-800 hover:border-slate-700/60 rounded-xl flex items-center justify-between gap-3 transition-colors"
+                            >
+                              <div className="space-y-1 min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="px-1.5 py-0.5 bg-sky-500/10 border border-sky-500/20 text-sky-400 text-[10px] font-bold rounded">
+                                    {log.subject || '과목 없음'}
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 font-mono">
+                                    {dateFormatted}
+                                  </span>
+                                </div>
+                                <h4 className="text-white font-bold text-sm truncate" title={log.quizTitle}>
+                                  {log.quizTitle}
+                                </h4>
+                                <p className="text-[11px] text-slate-400">
+                                  성적: <strong className="text-slate-300">{log.score}</strong> / {log.totalQuestions} 문제 맞힘 ({Math.round((log.score / log.totalQuestions) * 100)}점)
+                                </p>
                               </div>
-                              <h4 className="text-white font-bold text-sm truncate" title={log.quizTitle}>
-                                {log.quizTitle}
-                              </h4>
-                              <p className="text-[11px] text-slate-400">
-                                성적: <strong className="text-slate-300">{log.score}</strong> / {log.totalQuestions} 문제 맞힘 ({Math.round((log.score / log.totalQuestions) * 100)}점)
-                              </p>
+                              <div className="shrink-0 text-right">
+                                {log.earnedPoints > 0 ? (
+                                  <span className="text-emerald-400 font-black font-mono text-base bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg">
+                                    +{log.earnedPoints} P
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-500 font-black font-mono text-xs bg-slate-800/80 border border-slate-700/50 px-2 py-1 rounded-lg">
+                                    0 P (미통과)
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <div className="shrink-0 text-right">
-                              {log.earnedPoints > 0 ? (
-                                <span className="text-emerald-400 font-black font-mono text-base bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg">
-                                  +{log.earnedPoints} P
-                                </span>
-                              ) : (
-                                <span className="text-slate-500 font-black font-mono text-xs bg-slate-800/80 border border-slate-700/50 px-2 py-1 rounded-lg">
-                                  0 P (미통과)
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
 
               </div>
               
               {/* Footer */}
-              <div className="mt-4 pt-4 border-t border-slate-800 text-center">
+              <div className="mt-4 pt-4 border-t border-slate-800 text-center shrink-0">
                 <button 
                   onClick={() => setShowPointAnalysis(false)}
-                  className="w-full py-3 bg-sky-500 hover:bg-sky-600 text-white font-bold rounded-2xl transition-colors shadow-lg shadow-sky-500/20 text-sm"
+                  className="w-full py-3.5 bg-sky-500 hover:bg-sky-600 text-white font-bold rounded-2xl transition-colors shadow-lg shadow-sky-500/20 text-sm"
                 >
                   확인 및 닫기
                 </button>
@@ -1322,12 +1534,17 @@ export default function Home() {
                   <>
                     <div className="flex items-center justify-between">
                       <div className="flex flex-col">
-                        <span className="text-sm text-slate-300">객관식 재도전 기회</span>
-                        <span className="text-xs text-slate-500">오답 시 한 번 더 풀 수 있음 (포인트 50%)</span>
+                        <span className="text-sm text-slate-300 flex items-center gap-1.5 font-semibold">
+                          객관식 재도전 기회 {lockRetry && <Lock size={12} className="text-amber-400 shrink-0" />}
+                        </span>
+                        <span className="text-xs text-slate-500 mt-0.5">
+                          {lockRetry ? "🔒 보호자 설정에 의해 변경이 금지되었습니다." : "오답 시 한 번 더 풀 수 있음 (포인트 50%)"}
+                        </span>
                       </div>
                       <button 
-                        onClick={() => setRetryMultipleChoice(!retryMultipleChoice)}
-                        className={`w-12 h-6 rounded-full transition-colors relative ${retryMultipleChoice ? 'bg-sky-500' : 'bg-slate-700'}`}
+                        onClick={() => { if (!lockRetry) setRetryMultipleChoice(!retryMultipleChoice); }}
+                        disabled={lockRetry}
+                        className={`w-12 h-6 rounded-full transition-colors relative ${retryMultipleChoice ? 'bg-sky-500' : 'bg-slate-700'} ${lockRetry ? 'opacity-40 cursor-not-allowed' : 'hover:bg-opacity-80'}`}
                       >
                         <motion.div 
                           animate={{ x: retryMultipleChoice ? 24 : 2 }}
@@ -1338,12 +1555,16 @@ export default function Home() {
                     
                     <div className="flex items-center justify-between">
                       <div className="flex flex-col">
-                        <span className="text-sm text-slate-300">문제 글자 크기</span>
+                        <span className="text-sm text-slate-300 flex items-center gap-1.5 font-semibold">
+                          문제 글자 크기 {lockFontSize && <Lock size={12} className="text-amber-400 shrink-0" />}
+                        </span>
+                        {lockFontSize && <span className="text-[10px] text-slate-500 mt-0.5">🔒 보호자 설정에 의해 고정됨</span>}
                       </div>
                       <select 
                         value={quizFontSize}
+                        disabled={lockFontSize}
                         onChange={(e) => setQuizFontSize(e.target.value)}
-                        className="bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm focus:outline-none text-slate-300"
+                        className="bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm focus:outline-none text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <option value="small">작게</option>
                         <option value="medium">보통</option>
@@ -1353,12 +1574,16 @@ export default function Home() {
                     
                     <div className="flex items-center justify-between">
                       <div className="flex flex-col">
-                        <span className="text-sm text-slate-300">원문 근거 노출 방식</span>
+                        <span className="text-sm text-slate-300 flex items-center gap-1.5 font-semibold">
+                          원문 근거 노출 방식 {lockContextTiming && <Lock size={12} className="text-amber-400 shrink-0" />}
+                        </span>
+                        {lockContextTiming && <span className="text-[10px] text-slate-500 mt-0.5">🔒 보호자 설정에 의해 고정됨</span>}
                       </div>
                       <select 
                         value={showContextTiming}
+                        disabled={lockContextTiming}
                         onChange={(e) => setShowContextTiming(e.target.value as 'always' | 'after_quiz')}
-                        className="bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm focus:outline-none text-slate-300"
+                        className="bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm focus:outline-none text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <option value="always">항상 보기</option>
                         <option value="after_quiz">다 풀고 나서 보기</option>
@@ -1727,10 +1952,25 @@ export default function Home() {
                               </div>
                             ))}
                           </div>
+                          <div className="flex items-center justify-between">
+                            <div className="flex flex-col">
+                              <span className="text-sm text-slate-300 font-semibold">목표 보상 포인트</span>
+                              <span className="text-xs text-slate-500 mt-0.5">학생의 달성 목표 포인트 점수</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <input 
+                                type="number" 
+                                value={targetPoints} 
+                                onChange={(e) => setTargetPoints(Math.max(1, parseInt(e.target.value) || 1))}
+                                className="bg-slate-800 border border-slate-700 rounded-lg p-1.5 text-sm focus:outline-none text-slate-300 w-20 text-center font-bold font-mono text-sky-400"
+                              />
+                              <span className="text-xs text-slate-500 font-bold">P</span>
+                            </div>
+                          </div>
                           
                           <div className="flex items-center justify-between">
                             <div className="flex flex-col">
-                              <span className="text-sm text-slate-300">매월 포인트 자동 리셋</span>
+                              <span className="text-sm text-slate-300 font-semibold">매월 포인트 자동 리셋</span>
                             </div>
                             <button 
                               onClick={() => setAutoResetPoints(!autoResetPoints)}
@@ -1750,11 +1990,66 @@ export default function Home() {
                                  if(confirm('정말 포인트를 초기화 하시겠습니까?')) {
                                    setTotalPoints(0);
                                  }
-                               }}
+                                }}
                                className="px-3 py-1 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-xs"
                              >
                                수동 초기화
                              </button>
+                          </div>
+                        </div>
+
+                        {/* Guardian Locking Controls */}
+                        <div className="pt-4 border-t border-slate-800 space-y-4">
+                          <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2">
+                            <span>🔒 학생용 일반 설정 고정 (잠금)</span>
+                          </h3>
+                          
+                          <div className="flex items-center justify-between bg-slate-950/40 p-3.5 rounded-2xl border border-slate-800">
+                            <div className="flex flex-col">
+                              <span className="text-sm text-slate-300 font-semibold">객관식 재도전 기회 고정</span>
+                              <span className="text-xs text-slate-500 mt-0.5">일반 설정에서 변경 금지</span>
+                            </div>
+                            <button 
+                              onClick={() => setLockRetry(!lockRetry)}
+                              className={`w-12 h-6 rounded-full transition-colors relative ${lockRetry ? 'bg-amber-500' : 'bg-slate-700'}`}
+                            >
+                              <motion.div 
+                                animate={{ x: lockRetry ? 24 : 2 }}
+                                className="w-5 h-5 bg-white rounded-full absolute top-[2px]"
+                              />
+                            </button>
+                          </div>
+
+                          <div className="flex items-center justify-between bg-slate-950/40 p-3.5 rounded-2xl border border-slate-800">
+                            <div className="flex flex-col">
+                              <span className="text-sm text-slate-300 font-semibold">문제 글자 크기 고정</span>
+                              <span className="text-xs text-slate-500 mt-0.5">일반 설정에서 변경 금지</span>
+                            </div>
+                            <button 
+                              onClick={() => setLockFontSize(!lockFontSize)}
+                              className={`w-12 h-6 rounded-full transition-colors relative ${lockFontSize ? 'bg-amber-500' : 'bg-slate-700'}`}
+                            >
+                              <motion.div 
+                                animate={{ x: lockFontSize ? 24 : 2 }}
+                                className="w-5 h-5 bg-white rounded-full absolute top-[2px]"
+                              />
+                            </button>
+                          </div>
+
+                          <div className="flex items-center justify-between bg-slate-950/40 p-3.5 rounded-2xl border border-slate-800">
+                            <div className="flex flex-col">
+                              <span className="text-sm text-slate-300 font-semibold">원문 근거 노출 잠금</span>
+                              <span className="text-xs text-slate-500 mt-0.5">일반 설정에서 변경 금지</span>
+                            </div>
+                            <button 
+                              onClick={() => setLockContextTiming(!lockContextTiming)}
+                              className={`w-12 h-6 rounded-full transition-colors relative ${lockContextTiming ? 'bg-amber-500' : 'bg-slate-700'}`}
+                            >
+                              <motion.div 
+                                animate={{ x: lockContextTiming ? 24 : 2 }}
+                                className="w-5 h-5 bg-white rounded-full absolute top-[2px]"
+                              />
+                            </button>
                           </div>
                         </div>
 
