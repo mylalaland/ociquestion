@@ -1,5 +1,5 @@
 'use client';
-
+// Vercel trigger: force rebuild on master
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, Key, FileText, BrainCircuit, ChevronRight, CheckCircle2, RotateCcw, Download, Camera, Settings, X, Book, HelpCircle, Home as HomeIcon, Lock, ShieldCheck, AlertTriangle, Eye, EyeOff, Trash2 } from 'lucide-react';
