@@ -13,17 +13,25 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "라라퀴즈",
-  description: "LalaQuiz - AI Document Quizzer App",
+  title: "Lala Quiz",
+  description: "Lala Quiz - AI Document Quizzer App",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "라라퀴즈",
+    title: "Lala Quiz",
   },
   formatDetection: {
     telephone: false,
   },
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

@@ -7,6 +7,15 @@
   --accent: #fcd34d;
 }
 
+html, body {
+  max-width: 100vw;
+  width: 100%;
+  overflow-x: hidden;
+  position: relative;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
 body {
   background: radial-gradient(circle at top right, #1e293b, #0f172a);
   color: var(--foreground);
