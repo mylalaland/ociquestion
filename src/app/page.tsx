@@ -52,7 +52,7 @@ export default function Home() {
   const [apiKeyGemini, setApiKeyGemini] = useState('');
   const [apiKeyOpenai, setApiKeyOpenai] = useState('');
   const [apiKeyClaude, setApiKeyClaude] = useState('');
-  const [modelGemini, setModelGemini] = useState('gemini-1.5-flash');
+  const [modelGemini, setModelGemini] = useState('gemini-flash-latest');
   const [modelOpenai, setModelOpenai] = useState('gpt-4o-mini');
   const [modelClaude, setModelClaude] = useState('claude-3-5-sonnet-latest');
   const [discoveredGemini, setDiscoveredGemini] = useState<string[]>([]);
@@ -95,6 +95,7 @@ export default function Home() {
   const [lockContextTiming, setLockContextTiming] = useState(false);
   const [targetPoints, setTargetPoints] = useState(1000);
   const [pointModalTab, setPointModalTab] = useState<'goal' | 'chart' | 'logs'>('goal');
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
   
   // ─── Password Protection ───
   const [parentPasswordHash, setParentPasswordHash] = useState<string | null>(null);
@@ -220,6 +221,9 @@ export default function Home() {
     if (savedLockTiming) setLockContextTiming(savedLockTiming === 'true');
     if (savedTargetPoints) setTargetPoints(parseInt(savedTargetPoints));
 
+    const savedTheme = localStorage.getItem('OCI_QUIZ_THEME');
+    if (savedTheme) setTheme(savedTheme as 'light' | 'dark' | 'system');
+
     setPointLogs(getPointLogs());
   }, []);
 
@@ -270,6 +274,47 @@ export default function Home() {
     localStorage.setItem('OCI_QUIZ_LOCK_CONTEXT_TIMING', lockContextTiming.toString());
     localStorage.setItem('OCI_QUIZ_TARGET_POINTS', targetPoints.toString());
   }, [lockRetry, lockFontSize, lockContextTiming, targetPoints]);
+
+  useEffect(() => {
+    localStorage.setItem('OCI_QUIZ_THEME', theme);
+    const applyTheme = (t: 'light' | 'dark' | 'system') => {
+      const root = document.documentElement;
+      if (t === 'light') {
+        root.classList.add('light');
+        root.classList.remove('dark');
+      } else if (t === 'dark') {
+        root.classList.add('dark');
+        root.classList.remove('light');
+      } else {
+        const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (systemDark) {
+          root.classList.add('dark');
+          root.classList.remove('light');
+        } else {
+          root.classList.add('light');
+          root.classList.remove('dark');
+        }
+      }
+    };
+    
+    applyTheme(theme);
+    
+    if (theme === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handler = (e: MediaQueryListEvent) => {
+        const root = document.documentElement;
+        if (e.matches) {
+          root.classList.add('dark');
+          root.classList.remove('light');
+        } else {
+          root.classList.add('light');
+          root.classList.remove('dark');
+        }
+      };
+      mediaQuery.addEventListener('change', handler);
+      return () => mediaQuery.removeEventListener('change', handler);
+    }
+  }, [theme]);
 
   // ═══════════════════════════════════════
   // Handlers
@@ -849,7 +894,7 @@ export default function Home() {
               <div className="h-5 w-px bg-slate-800" />
               <div className="flex items-center gap-2">
                 <BrainCircuit size={16} className="text-sky-400" />
-                <span className="text-sm font-bold shimmer-text">라라퀴즈</span>
+                <span className="text-sm font-bold shimmer-text">Lala Quiz</span>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -960,7 +1005,7 @@ export default function Home() {
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <BrainCircuit size={20} className="text-sky-400" />
-            <span className="font-bold shimmer-text text-sm tracking-wider">라라퀴즈</span>
+            <span className="font-bold shimmer-text text-sm tracking-wider">Lala Quiz</span>
           </div>
           <div className="flex items-center gap-2">
             <button 
@@ -1590,6 +1635,26 @@ export default function Home() {
                       </select>
                     </div>
 
+                    <div className="flex items-center justify-between">
+                      <div className="flex flex-col">
+                        <span className="text-sm text-slate-300 font-semibold">
+                          화면 스킨 테마
+                        </span>
+                        <span className="text-xs text-slate-500 mt-0.5">
+                          어플리케이션 색상 테마 설정
+                        </span>
+                      </div>
+                      <select 
+                        value={theme}
+                        onChange={(e) => setTheme(e.target.value as 'light' | 'dark' | 'system')}
+                        className="bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm focus:outline-none text-slate-300"
+                      >
+                        <option value="system">🌓 시스템 설정</option>
+                        <option value="light">☀️ 밝은 톤</option>
+                        <option value="dark">🌙 어두운 톤</option>
+                      </select>
+                    </div>
+
                     <div className="pt-4 border-t border-slate-800">
                       <p className="text-xs text-slate-500 text-center">
                         🔒 API 키, 포인트, 통과 기준은 <button onClick={handleAdminAccess} className="text-sky-400 font-bold">관리자(보호자) 탭</button>에서 변경할 수 있습니다.
@@ -1734,15 +1799,6 @@ export default function Home() {
                                   <HelpCircle size={16} />
                                 </button>
                               </div>
-                              
-                              <button 
-                                type="button"
-                                onClick={handleDiscoverModels}
-                                disabled={(activeProvider === 'gemini' ? !apiKeyGemini : activeProvider === 'openai' ? !apiKeyOpenai : !apiKeyClaude) || isDiscovering}
-                                className="text-[10px] bg-sky-500/10 text-sky-400 px-2 py-1.5 rounded-lg hover:bg-sky-500/20 disabled:opacity-50 transition-all flex items-center gap-1 border border-sky-500/20"
-                              >
-                                <RotateCcw size={10} className={isDiscovering ? 'animate-spin' : ''} /> 모델 조회
-                              </button>
                             </div>
 
                             {/* Aligned Key Input and Look Up in Sub-panel */}
@@ -1775,6 +1831,21 @@ export default function Home() {
                                   className="w-full bg-slate-800/50 border border-slate-700 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all font-mono text-sm text-slate-200"
                                 />
                               )}
+                            </div>
+
+                            {/* 저장 및 모델조회 버튼을 아래쪽에 배치 */}
+                            <div className="mt-2.5">
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  saveAllSettings();
+                                  await handleDiscoverModels();
+                                }}
+                                disabled={isDiscovering}
+                                className="w-full py-2.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                              >
+                                <RotateCcw size={13} className={isDiscovering ? 'animate-spin' : ''} /> 저장 및 모델조회
+                              </button>
                             </div>
                           </div>
 
@@ -1871,10 +1942,10 @@ export default function Home() {
                                 onChange={(e) => setModelGemini(e.target.value)}
                                 className="w-full bg-slate-800/50 border border-slate-700 rounded-2xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-sky-500/50 transition-all text-slate-200 text-sm font-mono"
                               >
-                                <option value="gemini-1.5-flash">🌟 추천: Gemini 1.5 Flash (빠르고 최고 효율)</option>
-                                <option value="gemini-1.5-flash-latest">🌟 추천: Gemini 1.5 Flash Latest</option>
+                                <option value="gemini-flash-latest">🌟 추천: Gemini Flash Latest (초고속 및 최고 효율)</option>
+                                <option value="gemini-3.5-flash">🌟 추천: Gemini 3.5 Flash (최신 세대 고성능)</option>
                                 <option value="gemini-1.5-pro">Gemini 1.5 Pro (느리지만 높은 문제 완성도)</option>
-                                {discoveredGemini.filter(m => m !== 'gemini-1.5-flash' && m !== 'gemini-1.5-flash-latest' && m !== 'gemini-1.5-pro').map(m => (
+                                {discoveredGemini.filter(m => m !== 'gemini-flash-latest' && m !== 'gemini-3.5-flash' && m !== 'gemini-1.5-pro').map(m => (
                                   <option key={m} value={m}>{m}</option>
                                 ))}
                               </select>
@@ -1906,6 +1977,18 @@ export default function Home() {
                                 ))}
                               </select>
                             )}
+
+                            {/* 연결 테스트 버튼을 모델 선택 바로 아래에 배치 */}
+                            <div className="mt-2.5">
+                              <button 
+                                type="button"
+                                onClick={handleTestConnection}
+                                disabled={!apiKey || isTesting}
+                                className="w-full py-2.5 bg-slate-800 border border-slate-700 rounded-2xl font-bold hover:bg-slate-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2 text-xs text-slate-300"
+                              >
+                                {isTesting ? '연결 확인 중...' : '🔌 연결 테스트'}
+                              </button>
+                            </div>
                           </div>
                         </div>
 
@@ -2069,21 +2152,14 @@ export default function Home() {
                           </button>
                         </div>
 
-                        <div className="flex gap-3 pt-2">
-                          <button 
-                            onClick={handleTestConnection}
-                            disabled={!apiKey || isTesting}
-                            className="flex-1 py-3 bg-slate-800 border border-slate-700 rounded-2xl font-bold hover:bg-slate-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2 text-sm"
-                          >
-                            {isTesting ? '중...' : '연결 테스트'}
-                          </button>
+                        <div className="pt-2">
                           <button 
                             onClick={() => {
                               saveAllSettings();
                               setShowSettings(false);
                               setIsAdminUnlocked(false);
                             }}
-                            className="flex-1 py-3 bg-sky-500 rounded-2xl text-white font-bold hover:bg-sky-600 shadow-lg shadow-sky-500/30 transition-all text-sm"
+                            className="w-full py-3.5 bg-sky-500 rounded-2xl text-white font-bold hover:bg-sky-600 shadow-lg shadow-sky-500/30 transition-all text-sm"
                           >
                             저장 및 닫기
                           </button>
@@ -2112,7 +2188,7 @@ export default function Home() {
       >
         <div className="inline-flex items-center gap-2 px-4 py-2 glass rounded-full text-sm text-sky-400 mb-4">
           <BrainCircuit size={16} />
-          <span className="font-bold tracking-widest uppercase">라라퀴즈</span>
+          <span className="font-bold tracking-widest uppercase">LALA QUIZ</span>
         </div>
         <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
           어떤 문서든 <br />
