@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, SchemaType, ResponseSchema } from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType, ResponseSchema, Part } from "@google/generative-ai";
 import { QuizQuestion, QuizResult } from "./types";
 
 const QUIZ_SCHEMA: ResponseSchema = {
@@ -14,7 +14,7 @@ const QUIZ_SCHEMA: ResponseSchema = {
         type: SchemaType.OBJECT,
         properties: {
           id: { type: SchemaType.STRING },
-          type: { type: SchemaType.STRING, enum: ["CSAT", "MULTIPLE_CHOICE", "SHORT_ANSWER", "ESSAY"] } as any,
+          type: { type: SchemaType.STRING, enum: ["CSAT", "MULTIPLE_CHOICE", "SHORT_ANSWER", "ESSAY"] } as ResponseSchema,
           question: { type: SchemaType.STRING },
           options: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
           correctAnswer: { type: SchemaType.STRING },
@@ -60,9 +60,9 @@ export class GeminiProvider {
         throw new Error(errorData.error?.message || "모델 목록을 가져오지 못했습니다.");
       }
       const data = await response.json();
-      return data.models
-        .filter((m: any) => m.supportedGenerationMethods.includes("generateContent"))
-        .map((m: any) => m.name.replace("models/", ""));
+      return (data.models as { name: string; supportedGenerationMethods: string[] }[])
+        .filter((m) => m.supportedGenerationMethods.includes("generateContent"))
+        .map((m) => m.name.replace("models/", ""));
     } catch (error) {
       console.error("Discovery Failed:", error);
       throw error;
@@ -70,16 +70,17 @@ export class GeminiProvider {
   }
 
   private async withRetry<T>(fn: () => Promise<T>, maxRetries: number = 3): Promise<T> {
-    let lastError: any;
+    let lastError: unknown;
     for (let i = 0; i < maxRetries; i++) {
       try {
         return await fn();
-      } catch (error: any) {
+      } catch (error: unknown) {
         lastError = error;
-        const isRetryable = error.message?.includes("503") || error.message?.includes("429") || error.status === 503 || error.status === 429;
+        const err = error as { message?: string; status?: number };
+        const isRetryable = err.message?.includes("503") || err.message?.includes("429") || err.status === 503 || err.status === 429;
         if (isRetryable && i < maxRetries - 1) {
           const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
-          console.warn(`Retry attempt ${i + 1} after ${delay}ms due to: ${error.message}`);
+          console.warn(`Retry attempt ${i + 1} after ${delay}ms due to: ${err.message}`);
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }
@@ -105,8 +106,8 @@ export class GeminiProvider {
         The overall difficulty of the questions should be: [${difficulty}].
         The quiz should include the following types as evenly distributed as possible: ${types.join(", ")}.
         
-        For "CSAT" (수능형), create a complex logical reasoning question typical of academic entrance exams.
-        For "MULTIPLE_CHOICE" (객관식), create 5-option multiple choice questions.
+        For "CSAT" (수능형), create a complex logical reasoning question typical of academic entrance exams. For CSAT questions, if they have options, the correctAnswer MUST exactly match one of the string items in the options array.
+        For "MULTIPLE_CHOICE" (객관식), create 5-option multiple choice questions. The correctAnswer MUST exactly match one of the string items in the options array (not the number or a prefix, but the exact string itself).
         For "SHORT_ANSWER" (단답형), create questions where the answer is a specific word or short phrase (1~3 words max).
         For "ESSAY" (서술형), create questions that require a longer, explanatory answer (1~3 sentences). The correctAnswer should be a model answer.
         
@@ -117,7 +118,7 @@ export class GeminiProvider {
         ${text.slice(0, 30000)}
       `;
 
-      const parts: any[] = [{ text: prompt }];
+      const parts: Part[] = [{ text: prompt }];
 
       if (files && files.length > 0) {
         for (const file of files) {

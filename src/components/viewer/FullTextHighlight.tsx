@@ -56,7 +56,7 @@ export default function FullTextHighlight({ text, highlights, activeHighlight, i
         {before}
         <motion.span 
           ref={highlightRef}
-          initial={{ backgroundColor: 'transparent', boxShadow: '0 0 0px skyblue' }}
+          initial={{ backgroundColor: 'rgba(56, 189, 248, 0)', boxShadow: '0 0 0px rgba(56, 189, 248, 0)' }}
           animate={{ backgroundColor: 'rgba(56, 189, 248, 0.4)', boxShadow: '0 0 20px rgba(56, 189, 248, 0.3)' }}
           className="highlight-sky px-1 rounded border-b-2 border-sky-400 font-bold text-white relative z-10"
         >

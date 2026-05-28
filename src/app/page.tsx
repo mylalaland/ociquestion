@@ -4,13 +4,15 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, Key, FileText, BrainCircuit, ChevronRight, CheckCircle2, RotateCcw, Download, Camera, Settings, X, Book, HelpCircle, Home as HomeIcon, Lock, ShieldCheck, AlertTriangle, Eye, EyeOff, Trash2 } from 'lucide-react';
 import { GeminiProvider } from '@/lib/ai/gemini-provider';
+import { OpenAIProvider } from '@/lib/ai/openai-provider';
+import { ClaudeProvider } from '@/lib/ai/claude-provider';
 import { extractTextFromPdf } from '@/lib/pdf/pdf-processor';
 import { QuizResult, PointConfig, DEFAULT_POINT_CONFIG } from '@/lib/ai/types';
 import QuizView from '@/components/quiz/QuizView';
 import QuizResultScreen from '@/components/quiz/QuizResultScreen';
 import FullTextHighlight from '@/components/viewer/FullTextHighlight';
 import CameraPreview from '@/components/shared/CameraPreview';
-import { saveQuizHistory, getAllQuizHistory, QuizHistory } from '@/lib/storage/history-store';
+import { saveQuizHistory, getAllQuizHistory, QuizHistory, PointLog, savePointLog, getPointLogs } from '@/lib/storage/history-store';
 
 // ========== Utility: SHA-256 hash ==========
 async function sha256(message: string): Promise<string> {
@@ -44,6 +46,33 @@ export default function Home() {
   // ─── Core State ───
   const [apiKey, setApiKey] = useState('');
   const [selectedModel, setSelectedModel] = useState('gemini-1.5-flash');
+  
+  // ─── Active Provider State ───
+  const [activeProvider, setActiveProvider] = useState<'gemini' | 'openai' | 'claude'>('gemini');
+  const [apiKeyGemini, setApiKeyGemini] = useState('');
+  const [apiKeyOpenai, setApiKeyOpenai] = useState('');
+  const [apiKeyClaude, setApiKeyClaude] = useState('');
+  const [modelGemini, setModelGemini] = useState('gemini-1.5-flash');
+  const [modelOpenai, setModelOpenai] = useState('gpt-4o-mini');
+  const [modelClaude, setModelClaude] = useState('claude-3-5-sonnet-latest');
+  const [discoveredGemini, setDiscoveredGemini] = useState<string[]>([]);
+  const [discoveredOpenai, setDiscoveredOpenai] = useState<string[]>([]);
+  const [discoveredClaude, setDiscoveredClaude] = useState<string[]>([]);
+
+  // Synchronize active apiKey & selectedModel when provider or keys change
+  useEffect(() => {
+    if (activeProvider === 'gemini') {
+      setApiKey(apiKeyGemini);
+      setSelectedModel(modelGemini);
+    } else if (activeProvider === 'openai') {
+      setApiKey(apiKeyOpenai);
+      setSelectedModel(modelOpenai);
+    } else if (activeProvider === 'claude') {
+      setApiKey(apiKeyClaude);
+      setSelectedModel(modelClaude);
+    }
+  }, [activeProvider, apiKeyGemini, apiKeyOpenai, apiKeyClaude, modelGemini, modelOpenai, modelClaude]);
+
   const [numQuestions, setNumQuestions] = useState(5);
   const [selectedTypes, setSelectedTypes] = useState<string[]>(['CSAT', 'MULTIPLE_CHOICE', 'SHORT_ANSWER', 'ESSAY']);
   const [difficulty, setDifficulty] = useState('보통');
@@ -57,6 +86,8 @@ export default function Home() {
   const [pointConfig, setPointConfig] = useState<PointConfig>(DEFAULT_POINT_CONFIG);
   const [autoResetPoints, setAutoResetPoints] = useState(false);
   const [totalPoints, setTotalPoints] = useState(0);
+  const [pointLogs, setPointLogs] = useState<PointLog[]>([]);
+  const [showPointAnalysis, setShowPointAnalysis] = useState(false);
   
   // ─── Password Protection ───
   const [parentPasswordHash, setParentPasswordHash] = useState<string | null>(null);
@@ -68,9 +99,6 @@ export default function Home() {
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
-  
-  // ─── Discovered Models ───
-  const [discoveredModels, setDiscoveredModels] = useState<string[]>([]);
   
   // ─── File & Processing ───
   const [files, setFiles] = useState<{file: File, startPage?: number, endPage?: number}[]>([]);
@@ -116,6 +144,30 @@ export default function Home() {
     if (savedKey) setApiKey(savedKey);
     if (savedModel) setSelectedModel(savedModel);
 
+    const savedProvider = localStorage.getItem('OCI_QUIZ_PROVIDER');
+    if (savedProvider) setActiveProvider(savedProvider as 'gemini' | 'openai' | 'claude');
+
+    const savedKeyGemini = localStorage.getItem('OCI_QUIZ_API_KEY_GEMINI') || savedKey || '';
+    const savedKeyOpenai = localStorage.getItem('OCI_QUIZ_API_KEY_OPENAI') || '';
+    const savedKeyClaude = localStorage.getItem('OCI_QUIZ_API_KEY_CLAUDE') || '';
+    if (savedKeyGemini) setApiKeyGemini(savedKeyGemini);
+    if (savedKeyOpenai) setApiKeyOpenai(savedKeyOpenai);
+    if (savedKeyClaude) setApiKeyClaude(savedKeyClaude);
+
+    const savedModelGemini = localStorage.getItem('OCI_QUIZ_MODEL_GEMINI') || savedModel || 'gemini-1.5-flash';
+    const savedModelOpenai = localStorage.getItem('OCI_QUIZ_MODEL_OPENAI') || 'gpt-4o-mini';
+    const savedModelClaude = localStorage.getItem('OCI_QUIZ_MODEL_CLAUDE') || 'claude-3-5-sonnet-latest';
+    if (savedModelGemini) setModelGemini(savedModelGemini);
+    if (savedModelOpenai) setModelOpenai(savedModelOpenai);
+    if (savedModelClaude) setModelClaude(savedModelClaude);
+
+    const savedDiscGemini = localStorage.getItem('OCI_QUIZ_DISCOVERED_GEMINI');
+    const savedDiscOpenai = localStorage.getItem('OCI_QUIZ_DISCOVERED_OPENAI');
+    const savedDiscClaude = localStorage.getItem('OCI_QUIZ_DISCOVERED_CLAUDE');
+    if (savedDiscGemini) setDiscoveredGemini(JSON.parse(savedDiscGemini));
+    if (savedDiscOpenai) setDiscoveredOpenai(JSON.parse(savedDiscOpenai));
+    if (savedDiscClaude) setDiscoveredClaude(JSON.parse(savedDiscClaude));
+
     const savedNum = localStorage.getItem('OCI_QUIZ_NUM_QUESTIONS');
     const savedTypes = localStorage.getItem('OCI_QUIZ_TYPES');
     const savedDiff = localStorage.getItem('OCI_QUIZ_DIFFICULTY');
@@ -150,6 +202,7 @@ export default function Home() {
       setTotalPoints(parseInt(savedTotalPoints));
     }
     localStorage.setItem('OCI_QUIZ_LAST_MONTH', currentMonth);
+    setPointLogs(getPointLogs());
   }, []);
 
   // ═══════════════════════════════════════
@@ -205,48 +258,124 @@ export default function Home() {
     }
   };
 
-  const saveSettings = (key: string, model: string) => {
-    const sanitizedKey = key.trim().replace(/[^\x20-\x7E]/g, '');
-    setApiKey(sanitizedKey);
-    setSelectedModel(model);
-    localStorage.setItem('OCI_QUIZ_API_KEY', sanitizedKey);
-    localStorage.setItem('OCI_QUIZ_MODEL', model);
+  const saveAllSettings = () => {
+    localStorage.setItem('OCI_QUIZ_PROVIDER', activeProvider);
+    
+    // Save Gemini keys & models
+    const sanGemini = apiKeyGemini.trim().replace(/[^\x20-\x7E]/g, '');
+    localStorage.setItem('OCI_QUIZ_API_KEY_GEMINI', sanGemini);
+    localStorage.setItem('OCI_QUIZ_MODEL_GEMINI', modelGemini);
+    localStorage.setItem('OCI_QUIZ_DISCOVERED_GEMINI', JSON.stringify(discoveredGemini));
+
+    // For backwards compatibility, set active one as OCI_QUIZ_API_KEY / MODEL
+    if (activeProvider === 'gemini') {
+      localStorage.setItem('OCI_QUIZ_API_KEY', sanGemini);
+      localStorage.setItem('OCI_QUIZ_MODEL', modelGemini);
+      setApiKey(sanGemini);
+      setSelectedModel(modelGemini);
+    }
+
+    // Save OpenAI
+    const sanOpenai = apiKeyOpenai.trim().replace(/[^\x20-\x7E]/g, '');
+    localStorage.setItem('OCI_QUIZ_API_KEY_OPENAI', sanOpenai);
+    localStorage.setItem('OCI_QUIZ_MODEL_OPENAI', modelOpenai);
+    localStorage.setItem('OCI_QUIZ_DISCOVERED_OPENAI', JSON.stringify(discoveredOpenai));
+
+    if (activeProvider === 'openai') {
+      localStorage.setItem('OCI_QUIZ_API_KEY', sanOpenai);
+      localStorage.setItem('OCI_QUIZ_MODEL', modelOpenai);
+      setApiKey(sanOpenai);
+      setSelectedModel(modelOpenai);
+    }
+
+    // Save Claude
+    const sanClaude = apiKeyClaude.trim().replace(/[^\x20-\x7E]/g, '');
+    localStorage.setItem('OCI_QUIZ_API_KEY_CLAUDE', sanClaude);
+    localStorage.setItem('OCI_QUIZ_MODEL_CLAUDE', modelClaude);
+    localStorage.setItem('OCI_QUIZ_DISCOVERED_CLAUDE', JSON.stringify(discoveredClaude));
+
+    if (activeProvider === 'claude') {
+      localStorage.setItem('OCI_QUIZ_API_KEY', sanClaude);
+      localStorage.setItem('OCI_QUIZ_MODEL', modelClaude);
+      setApiKey(sanClaude);
+      setSelectedModel(modelClaude);
+    }
   };
 
   const handleDiscoverModels = async () => {
-    if (!apiKey) return;
     setIsDiscovering(true);
     try {
-      const provider = new GeminiProvider(apiKey);
-      const models = await provider.getAvailableModels();
-      setDiscoveredModels(models);
-      if (models.length > 0) {
-        const defaultFlash = models.find(m => m.includes('1.5-flash')) || models.find(m => m.includes('1.5-pro'));
+      if (activeProvider === 'gemini') {
+        if (!apiKeyGemini) { alert('API 키가 입력되지 않았습니다.'); return; }
+        const provider = new GeminiProvider(apiKeyGemini);
+        const models = await provider.getAvailableModels();
+        setDiscoveredGemini(models);
+        
+        // Recommend/select default Flash
+        const defaultFlash = models.find(m => m.includes('1.5-flash')) || models.find(m => m.includes('2.5-flash')) || models.find(m => m.includes('1.5-pro'));
         if (defaultFlash) {
-          setSelectedModel(defaultFlash);
-        } else if (!models.includes(selectedModel)) {
-          setSelectedModel(models[0]);
+          setModelGemini(defaultFlash);
+        } else if (models.length > 0 && !models.includes(modelGemini)) {
+          setModelGemini(models[0]);
         }
+        alert(`총 ${models.length}개의 Gemini 모델을 조회하여 반영했습니다.`);
+      } else if (activeProvider === 'openai') {
+        if (!apiKeyOpenai) { alert('API 키가 입력되지 않았습니다.'); return; }
+        const provider = new OpenAIProvider(apiKeyOpenai);
+        const models = await provider.getAvailableModels();
+        setDiscoveredOpenai(models);
+        
+        const defaultGpt = models.find(m => m.includes('gpt-4o-mini')) || models.find(m => m.includes('gpt-4o'));
+        if (defaultGpt) {
+          setModelOpenai(defaultGpt);
+        } else if (models.length > 0 && !models.includes(modelOpenai)) {
+          setModelOpenai(models[0]);
+        }
+        alert(`총 ${models.length}개의 OpenAI 모델을 조회하여 반영했습니다.`);
+      } else if (activeProvider === 'claude') {
+        const claudeModels = [
+          'claude-3-5-sonnet-latest',
+          'claude-3-5-haiku-latest',
+          'claude-3-opus-latest',
+          'claude-3-sonnet',
+          'claude-3-haiku'
+        ];
+        setDiscoveredClaude(claudeModels);
+        setModelClaude('claude-3-5-sonnet-latest');
+        alert(`Anthropic Claude의 추천 모델 목록 5개를 성공적으로 로드했습니다.`);
       }
-      alert(`총 ${models.length}개의 모델을 찾았습니다.`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      alert(`모델 찾기 실패: ${error.message || '알 수 없는 오류'}`);
+      const err = error as Error;
+      alert(`모델 조회 실패: ${err.message || '알 수 없는 오류'}\nAPI 키가 올바른지 확인해 주세요.`);
     } finally {
       setIsDiscovering(false);
     }
   };
 
   const handleTestConnection = async () => {
-    if (!apiKey) return;
     setIsTesting(true);
     try {
-      const provider = new GeminiProvider(apiKey, selectedModel);
-      await provider.testConnection();
-      alert('연결 성공! 모델이 정상적으로 작동합니다.');
-    } catch (error: any) {
+      if (activeProvider === 'gemini') {
+        if (!apiKeyGemini) { alert('Gemini API 키가 입력되지 않았습니다.'); return; }
+        const provider = new GeminiProvider(apiKeyGemini, modelGemini);
+        await provider.testConnection();
+        alert('Gemini 연결 성공! 모델이 정상적으로 작동합니다.');
+      } else if (activeProvider === 'openai') {
+        if (!apiKeyOpenai) { alert('OpenAI API 키가 입력되지 않았습니다.'); return; }
+        const provider = new OpenAIProvider(apiKeyOpenai, modelOpenai);
+        await provider.testConnection();
+        alert('OpenAI 연결 성공! 모델이 정상적으로 작동합니다.');
+      } else if (activeProvider === 'claude') {
+        if (!apiKeyClaude) { alert('Claude API 키가 입력되지 않았습니다.'); return; }
+        const provider = new ClaudeProvider(apiKeyClaude, modelClaude);
+        await provider.testConnection();
+        alert('Claude 연결 성공! 모델이 정상적으로 작동합니다.');
+      }
+    } catch (error: unknown) {
       console.error(error);
-      alert(`연결 실패: ${error.message || '알 수 없는 오류'}\n모델 ID가 정확한지 확인해 주세요.`);
+      const err = error as Error;
+      alert(`연결 실패: ${err.message || '알 수 없는 오류'}\nAPI 키와 모델 선택을 확인해 주세요.`);
     } finally {
       setIsTesting(false);
     }
@@ -276,8 +405,17 @@ export default function Home() {
 
       setFullText(combinedText);
       
-      const provider = new GeminiProvider(apiKey, selectedModel);
-      const result = await provider.generateQuiz(combinedText, selectedTypes, imageFiles, numQuestions, difficulty);
+      let result;
+      if (activeProvider === 'openai') {
+        const provider = new OpenAIProvider(apiKey, selectedModel);
+        result = await provider.generateQuiz(combinedText, selectedTypes, numQuestions, difficulty);
+      } else if (activeProvider === 'claude') {
+        const provider = new ClaudeProvider(apiKey, selectedModel);
+        result = await provider.generateQuiz(combinedText, selectedTypes, numQuestions, difficulty);
+      } else {
+        const provider = new GeminiProvider(apiKey, selectedModel);
+        result = await provider.generateQuiz(combinedText, selectedTypes, imageFiles, numQuestions, difficulty);
+      }
       
       if (result.extractedText) {
         setFullText(prev => prev + "\n\n=== 📷 이미지에서 추출된 원문 텍스트 ===\n" + result.extractedText);
@@ -309,18 +447,19 @@ export default function Home() {
       await saveQuizHistory(newHistory);
       setCurrentQuizId(newHistory.id);
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("AI Quiz Generation Error:", error);
-      const errStr = String(error.message || error).toLowerCase();
+      const err = error as { message?: string; status?: number };
+      const errStr = String(err.message || error).toLowerCase();
       
-      if (errStr.includes("503") || error.status === 503) {
+      if (errStr.includes("503") || err.status === 503) {
         alert("현재 Google 서버에 요청이 몰려 응답이 지연되고 있습니다. (Error 503)\n잠시 후 다시 시도하시거나, 다른 모델(예: 1.5 Flash)로 변경해 보세요.");
-      } else if (errStr.includes("quota") || errStr.includes("429") || errStr.includes("exhausted") || error.status === 429) {
+      } else if (errStr.includes("quota") || errStr.includes("429") || errStr.includes("exhausted") || err.status === 429) {
         alert("🚨 API 크레딧 또는 할당량을 모두 소진했습니다!\nGoogle AI Studio에서 잔여 한도를 확인하시거나 과금이 필요할 수 있습니다.");
-      } else if (errStr.includes("api key") || errStr.includes("400") || errStr.includes("invalid") || error.status === 400) {
+      } else if (errStr.includes("api key") || errStr.includes("400") || errStr.includes("invalid") || err.status === 400) {
         alert("🚨 API 키가 유효하지 않습니다.\n설정에서 정확한 Gemini API 키를 다시 한 번 붙여넣어 주세요.");
       } else {
-        alert(`문제 생성 중 알 수 없는 오류가 발생했습니다.\n\n상세내용: ${error.message}\n네트워크나 설정을 확인해 주세요.`);
+        alert(`문제 생성 중 알 수 없는 오류가 발생했습니다.\n\n상세내용: ${err.message || String(error)}\n네트워크나 설정을 확인해 주세요.`);
       }
     } finally {
       setIsProcessing(false);
@@ -355,8 +494,9 @@ export default function Home() {
       link.download = `${quizResult.title}.txt`;
       link.click();
       URL.revokeObjectURL(url);
-    } catch (err: any) {
-      alert("TXT 다운로드 중 오류가 발생했습니다: " + err.message);
+    } catch (err: unknown) {
+      const error = err as Error;
+      alert("TXT 다운로드 중 오류가 발생했습니다: " + error.message);
     }
   };
 
@@ -413,9 +553,10 @@ export default function Home() {
       }
 
       doc.save(`${quizResult.title}.pdf`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("PDF Export Error:", err);
-      alert("PDF 내보내기 중 에러가 발생했습니다: " + (err.message || '알 수 없는 에러'));
+      const error = err as Error;
+      alert("PDF 내보내기 중 에러가 발생했습니다: " + (error.message || '알 수 없는 에러'));
     }
   };
 
@@ -462,6 +603,20 @@ export default function Home() {
 
     await saveQuizHistory(history);
     
+    // Save Point Log
+    const newLog: PointLog = {
+      id: Math.random().toString(36).substr(2, 9),
+      date: new Date().toISOString(),
+      quizId: currentQuizId,
+      quizTitle: history.title,
+      subject: history.subject || '과목 없음',
+      earnedPoints: earned,
+      score: score,
+      totalQuestions: history.totalQuestions
+    };
+    savePointLog(newLog);
+    setPointLogs(prev => [newLog, ...prev.filter(l => l.quizId !== currentQuizId)]);
+
     if (earned > 0) {
       setTotalPoints(prev => prev + earned);
     }
@@ -669,7 +824,7 @@ export default function Home() {
               <div className="h-5 w-px bg-slate-800" />
               <div className="flex items-center gap-2">
                 <BrainCircuit size={16} className="text-sky-400" />
-                <span className="text-sm font-bold shimmer-text">oci 질문</span>
+                <span className="text-sm font-bold shimmer-text">라라퀴즈</span>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -773,7 +928,7 @@ export default function Home() {
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <BrainCircuit size={20} className="text-sky-400" />
-            <span className="font-bold shimmer-text text-sm tracking-wider">oci 질문</span>
+            <span className="font-bold shimmer-text text-sm tracking-wider">라라퀴즈</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="glass px-3 py-1.5 rounded-xl flex items-center gap-2">
@@ -837,6 +992,164 @@ export default function Home() {
 
       {/* ── Modals ── */}
       <AnimatePresence>
+        {/* Point Analysis Modal */}
+        {showPointAnalysis && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          >
+            <div className="bg-slate-900/95 backdrop-blur-2xl p-6 md:p-8 rounded-[32px] border border-slate-700 w-full max-w-lg shadow-2xl relative max-h-[85vh] flex flex-col text-slate-100">
+              {/* Header */}
+              <div className="flex justify-between items-center mb-6 border-b border-slate-800 pb-4">
+                <h2 className="text-2xl font-bold flex items-center gap-2 text-white">
+                  <span className="text-2xl">🏆</span> 포인트 분석 및 리포트
+                </h2>
+                <button 
+                  onClick={() => setShowPointAnalysis(false)} 
+                  className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              {/* Scrollable Container */}
+              <div className="overflow-y-auto custom-scrollbar flex-1 pr-1 space-y-6">
+                
+                {/* Stats Summary Card */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-slate-800/40 border border-slate-800 p-4 rounded-2xl text-center">
+                    <span className="text-slate-400 text-xs block mb-1">현재 보유 포인트</span>
+                    <strong className="text-sky-400 text-2xl md:text-3xl font-black font-mono">{totalPoints} P</strong>
+                  </div>
+                  <div className="bg-slate-800/40 border border-slate-800 p-4 rounded-2xl text-center">
+                    <span className="text-slate-400 text-xs block mb-1">총 퀴즈 참여 횟수</span>
+                    <strong className="text-indigo-400 text-2xl md:text-3xl font-black font-mono">{pointLogs.length}회</strong>
+                  </div>
+                </div>
+
+                {/* Performance Analytics */}
+                {pointLogs.length > 0 && (
+                  <div className="bg-slate-800/30 border border-slate-800/60 p-5 rounded-2xl space-y-4">
+                    <h3 className="text-sm font-bold text-slate-300">📈 학습 성취도 요약</h3>
+                    
+                    {/* Average Accuracy Progress Bar */}
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-400">평균 정답률</span>
+                        <span className="text-emerald-400 font-bold">
+                          {(() => {
+                            const totalCorrect = pointLogs.reduce((sum, log) => sum + log.score, 0);
+                            const totalQuestions = pointLogs.reduce((sum, log) => sum + log.totalQuestions, 0);
+                            return totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0;
+                          })()}%
+                        </span>
+                      </div>
+                      <div className="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-emerald-500 to-sky-500 rounded-full" 
+                          style={{ 
+                            width: `${(() => {
+                              const totalCorrect = pointLogs.reduce((sum, log) => sum + log.score, 0);
+                              const totalQuestions = pointLogs.reduce((sum, log) => sum + log.totalQuestions, 0);
+                              return totalQuestions > 0 ? (totalCorrect / totalQuestions) * 100 : 0;
+                            })()}%` 
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Points Goal Progress Bar */}
+                    <div className="space-y-1.5 pt-2 border-t border-slate-800/60">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-400">목표 보상 포인트 (1000 P 기준)</span>
+                        <span className="text-sky-400 font-bold">{Math.min(100, Math.round((totalPoints / 1000) * 100))}%</span>
+                      </div>
+                      <div className="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-sky-500 to-indigo-500 rounded-full" 
+                          style={{ width: `${Math.min(100, (totalPoints / 1000) * 100)}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-slate-500 block">
+                        {totalPoints >= 1000 
+                          ? "🎉 축하합니다! 보상 목표를 달성했습니다! 보호자에게 보상을 요청하세요!" 
+                          : `🎁 다음 보상 기준인 1000 P까지 ${1000 - totalPoints} P 남았습니다!`}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Point Logs list */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-bold text-slate-300">📋 포인트 적립 내역</h3>
+                  
+                  {pointLogs.length === 0 ? (
+                    <div className="text-center text-slate-500 py-12 bg-slate-800/20 border border-dashed border-slate-800 rounded-2xl">
+                      아직 적립된 포인트 내역이 없습니다.<br/>
+                      첫 퀴즈를 풀고 포인트를 모아보세요! 🚀
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-[35vh] overflow-y-auto pr-1 custom-scrollbar">
+                      {pointLogs.map((log) => {
+                        const dateObj = new Date(log.date);
+                        const dateFormatted = `${dateObj.getMonth() + 1}월 ${dateObj.getDate()}일 ${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}`;
+                        
+                        return (
+                          <div 
+                            key={log.id} 
+                            className="p-3.5 bg-slate-800/40 border border-slate-800 hover:border-slate-700/60 rounded-xl flex items-center justify-between gap-3 transition-colors"
+                          >
+                            <div className="space-y-1 min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="px-1.5 py-0.5 bg-sky-500/10 border border-sky-500/20 text-sky-400 text-[10px] font-bold rounded">
+                                  {log.subject || '과목 없음'}
+                                </span>
+                                <span className="text-[10px] text-slate-500 font-mono">
+                                  {dateFormatted}
+                                </span>
+                              </div>
+                              <h4 className="text-white font-bold text-sm truncate" title={log.quizTitle}>
+                                {log.quizTitle}
+                              </h4>
+                              <p className="text-[11px] text-slate-400">
+                                성적: <strong className="text-slate-300">{log.score}</strong> / {log.totalQuestions} 문제 맞힘 ({Math.round((log.score / log.totalQuestions) * 100)}점)
+                              </p>
+                            </div>
+                            <div className="shrink-0 text-right">
+                              {log.earnedPoints > 0 ? (
+                                <span className="text-emerald-400 font-black font-mono text-base bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg">
+                                  +{log.earnedPoints} P
+                                </span>
+                              ) : (
+                                <span className="text-slate-500 font-black font-mono text-xs bg-slate-800/80 border border-slate-700/50 px-2 py-1 rounded-lg">
+                                  0 P (미통과)
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+              </div>
+              
+              {/* Footer */}
+              <div className="mt-4 pt-4 border-t border-slate-800 text-center">
+                <button 
+                  onClick={() => setShowPointAnalysis(false)}
+                  className="w-full py-3 bg-sky-500 hover:bg-sky-600 text-white font-bold rounded-2xl transition-colors shadow-lg shadow-sky-500/20 text-sm"
+                >
+                  확인 및 닫기
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* History Modal */}
         {showHistory && (
           <motion.div 
@@ -1139,128 +1452,236 @@ export default function Home() {
                           <ShieldCheck size={16} /> 관리자 모드 (잠금 해제됨)
                         </div>
 
-                        {/* API Key */}
-                        <div>
-                          <div className="mb-2">
-                            <div className="flex items-center gap-2 mb-2">
-                              <label className="text-sm font-medium text-slate-400">API Key (AI 출입증)</label>
-                              <button 
-                                onClick={() => setShowApiHelp(!showApiHelp)}
-                                className={`transition-colors focus:outline-none ${showApiHelp ? 'text-sky-400' : 'text-slate-500 hover:text-sky-400'}`}
-                              >
-                                <HelpCircle size={16} />
-                              </button>
-                            </div>
-                            <AnimatePresence>
-                              {showApiHelp && (
-                                <motion.div 
-                                  initial={{ height: 0, opacity: 0 }}
-                                  animate={{ height: 'auto', opacity: 1 }}
-                                  exit={{ height: 0, opacity: 0 }}
-                                  className="overflow-hidden"
-                                >
-                                  <div className="bg-slate-800 border border-sky-500/30 text-slate-300 text-sm rounded-xl p-4 mb-4 shadow-lg">
-                                    <p className="font-bold text-sky-400 mb-3 border-b border-slate-700 pb-2">🔑 API 키가 뭐예요?</p>
-                                    <div className="bg-sky-500/5 border border-sky-500/20 rounded-lg p-3 mb-4 text-xs">
-                                      <p className="text-sky-300 font-bold mb-1">💡 쉽게 설명하면...</p>
-                                      <p className="text-slate-300 leading-relaxed">
-                                        API 키는 AI에게 문제를 만들어달라고 부탁할 때 쓰는 <span className="text-sky-400 font-bold">&quot;출입증&quot;</span> 같은 거예요!
-                                        이 출입증이 있어야 AI가 &quot;아, 이 사람이 요청한 거구나&quot; 하고 문제를 만들어줘요.
-                                        <span className="text-emerald-400 font-bold"> 돈은 안 들어요! 무료예요! 😉</span>
-                                      </p>
-                                    </div>
-                                    
-                                    <p className="font-bold text-amber-400 mb-3 text-xs">📋 API 키 받는 방법 (하나씩 따라하세요!)</p>
-                                    <div className="space-y-3">
-                                      <div className="flex gap-3 items-start">
-                                        <span className="w-6 h-6 bg-sky-500 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">1</span>
-                                        <div className="text-xs">
-                                          <p className="text-slate-200 font-bold">Google 계정으로 로그인하세요</p>
-                                          <p className="text-slate-500">Gmail 계정이 있으면 그걸로 로그인하면 돼요!</p>
-                                        </div>
-                                      </div>
-                                      <div className="flex gap-3 items-start">
-                                        <span className="w-6 h-6 bg-sky-500 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">2</span>
-                                        <div className="text-xs">
-                                          <p className="text-slate-200 font-bold">아래 링크를 클릭하세요</p>
-                                          <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-sky-400 hover:underline bg-slate-700/50 px-2 py-1 rounded mt-1 inline-block">
-                                            👉 Google AI Studio 바로가기
-                                          </a>
-                                        </div>
-                                      </div>
-                                      <div className="flex gap-3 items-start">
-                                        <span className="w-6 h-6 bg-sky-500 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">3</span>
-                                        <div className="text-xs">
-                                          <p className="text-slate-200 font-bold">&quot;Create API Key&quot; 버튼을 클릭하세요</p>
-                                          <p className="text-slate-500">파란색 큰 버튼이에요!</p>
-                                        </div>
-                                      </div>
-                                      <div className="flex gap-3 items-start">
-                                        <span className="w-6 h-6 bg-sky-500 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">4</span>
-                                        <div className="text-xs">
-                                          <p className="text-slate-200 font-bold">&quot;Create API key in new project&quot;를 누르세요</p>
-                                          <p className="text-slate-500">자동으로 프로젝트가 만들어지면서 키가 생겨요!</p>
-                                        </div>
-                                      </div>
-                                      <div className="flex gap-3 items-start">
-                                        <span className="w-6 h-6 bg-emerald-500 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">5</span>
-                                        <div className="text-xs">
-                                          <p className="text-slate-200 font-bold">생성된 키를 복사해서 아래 칸에 붙여넣기!</p>
-                                          <p className="text-emerald-400">🎉 끝! 이제 퀴즈를 만들 수 있어요!</p>
-                                        </div>
-                                      </div>
-                                    </div>
-                                    
-                                    <div className="mt-4 text-[11px] text-slate-500 bg-black/20 p-2 rounded-lg">
-                                      * API 키는 이 기기에만 안전하게 저장되고 외부로 전송되지 않아요.
-                                    </div>
-                                  </div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </div>
-                          <div className="relative">
-                            <Key className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                            <input 
-                              type="password"
-                              value={apiKey}
-                              onChange={(e) => setApiKey(e.target.value)}
-                              placeholder="발급받은 API 키를 붙여넣기 하세요"
-                              className="w-full bg-slate-800/50 border border-slate-700 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-sky-500/50 transition-all font-mono text-sm"
-                            />
+                        {/* Provider Sub-Tabs */}
+                        <div className="space-y-4">
+                          <label className="block text-sm font-medium text-slate-400">AI 서비스 공급자 선택</label>
+                          <div className="grid grid-cols-3 gap-2 bg-slate-950/60 p-1.5 rounded-2xl border border-slate-800">
+                            <button
+                              type="button"
+                              onClick={() => setActiveProvider('gemini')}
+                              className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
+                                activeProvider === 'gemini'
+                                  ? 'bg-gradient-to-r from-sky-500 to-indigo-500 text-white shadow-lg shadow-sky-500/20'
+                                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                              }`}
+                            >
+                              🚀 Gemini
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setActiveProvider('openai')}
+                              className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
+                                activeProvider === 'openai'
+                                  ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/20'
+                                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                              }`}
+                            >
+                              🟢 OpenAI
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setActiveProvider('claude')}
+                              className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
+                                activeProvider === 'claude'
+                                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/20'
+                                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                              }`}
+                            >
+                              🔥 Claude
+                            </button>
                           </div>
                         </div>
 
-                        {/* Model Selection */}
-                        <div>
-                          <div className="flex justify-between items-center mb-2">
-                            <label className="block text-sm font-medium text-slate-400">AI 모델 선택</label>
-                            <button 
-                              onClick={handleDiscoverModels}
-                              disabled={!apiKey || isDiscovering}
-                              className="text-[10px] bg-sky-500/10 text-sky-400 px-2 py-1 rounded-md hover:bg-sky-500/20 transition-all flex items-center gap-1"
-                            >
-                              <RotateCcw size={10} className={isDiscovering ? 'animate-spin' : ''} /> 모델 조회
-                            </button>
+                        {/* Provider Configuration */}
+                        <div className="space-y-4 pt-2">
+                          {/* API Key Header & Guide Toggle */}
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <label className="text-sm font-medium text-slate-400">
+                                  {activeProvider === 'gemini' ? 'Gemini API Key' : activeProvider === 'openai' ? 'OpenAI API Key' : 'Claude API Key'}
+                                </label>
+                                <button 
+                                  type="button"
+                                  onClick={() => setShowApiHelp(!showApiHelp)}
+                                  className={`transition-colors focus:outline-none ${showApiHelp ? 'text-sky-400' : 'text-slate-500 hover:text-sky-400'}`}
+                                >
+                                  <HelpCircle size={16} />
+                                </button>
+                              </div>
+                              
+                              <button 
+                                type="button"
+                                onClick={handleDiscoverModels}
+                                disabled={(activeProvider === 'gemini' ? !apiKeyGemini : activeProvider === 'openai' ? !apiKeyOpenai : !apiKeyClaude) || isDiscovering}
+                                className="text-[10px] bg-sky-500/10 text-sky-400 px-2 py-1.5 rounded-lg hover:bg-sky-500/20 disabled:opacity-50 transition-all flex items-center gap-1 border border-sky-500/20"
+                              >
+                                <RotateCcw size={10} className={isDiscovering ? 'animate-spin' : ''} /> 모델 조회
+                              </button>
+                            </div>
+
+                            {/* Aligned Key Input and Look Up in Sub-panel */}
+                            <div className="relative">
+                              <Key className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                              {activeProvider === 'gemini' && (
+                                <input 
+                                  type="password"
+                                  value={apiKeyGemini}
+                                  onChange={(e) => setApiKeyGemini(e.target.value)}
+                                  placeholder="Google Gemini API 키 입력"
+                                  className="w-full bg-slate-800/50 border border-slate-700 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-sky-500/50 transition-all font-mono text-sm text-slate-200"
+                                />
+                              )}
+                              {activeProvider === 'openai' && (
+                                <input 
+                                  type="password"
+                                  value={apiKeyOpenai}
+                                  onChange={(e) => setApiKeyOpenai(e.target.value)}
+                                  placeholder="OpenAI API 키 입력 (sk-...)"
+                                  className="w-full bg-slate-800/50 border border-slate-700 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all font-mono text-sm text-slate-200"
+                                />
+                              )}
+                              {activeProvider === 'claude' && (
+                                <input 
+                                  type="password"
+                                  value={apiKeyClaude}
+                                  onChange={(e) => setApiKeyClaude(e.target.value)}
+                                  placeholder="Anthropic Claude API 키 입력"
+                                  className="w-full bg-slate-800/50 border border-slate-700 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all font-mono text-sm text-slate-200"
+                                />
+                              )}
+                            </div>
                           </div>
-                          <select 
-                            value={selectedModel}
-                            onChange={(e) => setSelectedModel(e.target.value)}
-                            className="w-full bg-slate-800/50 border border-slate-700 rounded-2xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-sky-500/50 transition-all text-slate-200 text-sm"
-                          >
-                            {discoveredModels.length > 0 ? (
-                              discoveredModels.map(name => (
-                                <option key={name} value={name}>{name}</option>
-                              ))
-                            ) : (
-                              <>
-                                <option value="gemini-1.5-flash">Gemini 1.5 Flash (기본)</option>
-                                <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
-                                <option value="gemini-1.5-flash-latest">Gemini 1.5 Flash Latest</option>
-                                <option value="gemini-pro">Gemini 1.0 Pro</option>
-                              </>
+
+                          {/* Dynamic Guide per activeProvider */}
+                          <AnimatePresence>
+                            {showApiHelp && (
+                              <motion.div 
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="bg-slate-800 border border-sky-500/30 text-slate-300 text-sm rounded-xl p-4 mb-2 shadow-lg space-y-3">
+                                  {activeProvider === 'gemini' && (
+                                    <>
+                                      <p className="font-bold text-sky-400 border-b border-slate-700 pb-2 flex items-center gap-1.5">
+                                        <span>🔑 Gemini API 키 무료 발급 가이드</span>
+                                        <span className="bg-emerald-500/20 text-emerald-400 text-[9px] px-1.5 py-0.5 rounded font-normal">강력추천! 무료</span>
+                                      </p>
+                                      <div className="space-y-2.5 text-xs text-slate-300">
+                                        <p>Gemini API 키는 구글 계정만 있다면 <strong>완전 무료</strong>로 1분 만에 만들 수 있어요!</p>
+                                        <div className="flex gap-2 items-start bg-slate-900/40 p-2.5 rounded-lg border border-slate-700/50">
+                                          <span className="w-5 h-5 bg-sky-500/20 text-sky-400 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">1</span>
+                                          <p>
+                                            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-sky-400 hover:underline font-bold inline-flex items-center gap-1">
+                                              👉 여기를 클릭해 구글 AI Studio로 가기
+                                            </a>
+                                          </p>
+                                        </div>
+                                        <div className="flex gap-2 items-start bg-slate-900/40 p-2.5 rounded-lg border border-slate-700/50">
+                                          <span className="w-5 h-5 bg-sky-500/20 text-sky-400 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">2</span>
+                                          <p>구글 로그인 후 화면 상단의 파란색 <strong className="text-white">&quot;Create API key&quot;</strong> 버튼을 클릭하세요.</p>
+                                        </div>
+                                        <div className="flex gap-2 items-start bg-slate-900/40 p-2.5 rounded-lg border border-slate-700/50">
+                                          <span className="w-5 h-5 bg-sky-500/20 text-sky-400 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">3</span>
+                                          <p><strong className="text-white">&quot;Create API key in new project&quot;</strong>를 누르고 생성된 영어+숫자 키를 복사해서 붙여넣으세요!</p>
+                                        </div>
+                                      </div>
+                                    </>
+                                  )}
+                                  {activeProvider === 'openai' && (
+                                    <>
+                                      <p className="font-bold text-emerald-400 border-b border-slate-700 pb-2">🔑 OpenAI API 키 발급 가이드</p>
+                                      <div className="space-y-2.5 text-xs text-slate-300">
+                                        <p>OpenAI API 키를 발급받으려면 결제용 크레딧(최소 $5) 충전이 필요합니다.</p>
+                                        <div className="flex gap-2 items-start bg-slate-900/40 p-2.5 rounded-lg border border-slate-700/50">
+                                          <span className="w-5 h-5 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">1</span>
+                                          <p>
+                                            <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer" className="text-emerald-400 hover:underline font-bold">
+                                              👉 OpenAI Developer Platform 바로가기
+                                            </a>
+                                          </p>
+                                        </div>
+                                        <div className="flex gap-2 items-start bg-slate-900/40 p-2.5 rounded-lg border border-slate-700/50">
+                                          <span className="w-5 h-5 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">2</span>
+                                          <p>로그인 후 <strong className="text-white">&quot;+ Create new secret key&quot;</strong> 버튼을 눌러 키를 생성하고 복사하세요.</p>
+                                        </div>
+                                      </div>
+                                    </>
+                                  )}
+                                  {activeProvider === 'claude' && (
+                                    <>
+                                      <p className="font-bold text-amber-400 border-b border-slate-700 pb-2">🔑 Anthropic Claude API 키 발급 가이드</p>
+                                      <div className="space-y-2.5 text-xs text-slate-300">
+                                        <p className="text-amber-400/90 bg-amber-500/10 p-2 rounded border border-amber-500/20 text-[11px] leading-relaxed">
+                                          ⚠️ <strong>주의 (CORS 제한):</strong> Anthropic API는 브라우저 직접 호출 시 보안(CORS) 제한이 엄격합니다. 로컬 테스트 및 특수 웹 뷰 환경에서만 원활히 작동합니다.
+                                        </p>
+                                        <div className="flex gap-2 items-start bg-slate-900/40 p-2.5 rounded-lg border border-slate-700/50">
+                                          <span className="w-5 h-5 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">1</span>
+                                          <p>
+                                            <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" className="text-amber-400 hover:underline font-bold">
+                                              👉 Anthropic Console 바로가기
+                                            </a>
+                                          </p>
+                                        </div>
+                                        <div className="flex gap-2 items-start bg-slate-900/40 p-2.5 rounded-lg border border-slate-700/50">
+                                          <span className="w-5 h-5 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">2</span>
+                                          <p>로그인 후 <strong className="text-white">&quot;Create Key&quot;</strong> 버튼을 눌러 키를 생성하고 복사하세요.</p>
+                                        </div>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              </motion.div>
                             )}
-                          </select>
+                          </AnimatePresence>
+
+                          {/* Model Selection */}
+                          <div>
+                            <label className="block text-sm font-medium text-slate-400 mb-2">AI 모델 선택</label>
+                            {activeProvider === 'gemini' && (
+                              <select 
+                                value={modelGemini}
+                                onChange={(e) => setModelGemini(e.target.value)}
+                                className="w-full bg-slate-800/50 border border-slate-700 rounded-2xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-sky-500/50 transition-all text-slate-200 text-sm font-mono"
+                              >
+                                <option value="gemini-1.5-flash">🌟 추천: Gemini 1.5 Flash (빠르고 최고 효율)</option>
+                                <option value="gemini-1.5-flash-latest">🌟 추천: Gemini 1.5 Flash Latest</option>
+                                <option value="gemini-1.5-pro">Gemini 1.5 Pro (느리지만 높은 문제 완성도)</option>
+                                {discoveredGemini.filter(m => m !== 'gemini-1.5-flash' && m !== 'gemini-1.5-flash-latest' && m !== 'gemini-1.5-pro').map(m => (
+                                  <option key={m} value={m}>{m}</option>
+                                ))}
+                              </select>
+                            )}
+                            {activeProvider === 'openai' && (
+                              <select 
+                                value={modelOpenai}
+                                onChange={(e) => setModelOpenai(e.target.value)}
+                                className="w-full bg-slate-800/50 border border-slate-700 rounded-2xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all text-slate-200 text-sm font-mono"
+                              >
+                                <option value="gpt-4o-mini">🌟 추천: GPT-4o Mini (빠르고 매우 똑똑함)</option>
+                                <option value="gpt-4o">GPT-4o (강력한 추론 능력)</option>
+                                <option value="o1-mini">o1-mini (추론 특화 / 수학 과학 우수)</option>
+                                {discoveredOpenai.filter(m => m !== 'gpt-4o-mini' && m !== 'gpt-4o' && m !== 'o1-mini').map(m => (
+                                  <option key={m} value={m}>{m}</option>
+                                ))}
+                              </select>
+                            )}
+                            {activeProvider === 'claude' && (
+                              <select 
+                                value={modelClaude}
+                                onChange={(e) => setModelClaude(e.target.value)}
+                                className="w-full bg-slate-800/50 border border-slate-700 rounded-2xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all text-slate-200 text-sm font-mono"
+                              >
+                                <option value="claude-3-5-sonnet-latest">🌟 추천: Claude 3.5 Sonnet (최상의 어휘력과 국어 퀴즈)</option>
+                                <option value="claude-3-5-haiku-latest">Claude 3.5 Haiku (빠른 속도)</option>
+                                {discoveredClaude.filter(m => m !== 'claude-3-5-sonnet-latest' && m !== 'claude-3-5-haiku-latest').map(m => (
+                                  <option key={m} value={m}>{m}</option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
                         </div>
 
                         {/* Point Settings */}
@@ -1363,7 +1784,7 @@ export default function Home() {
                           </button>
                           <button 
                             onClick={() => {
-                              saveSettings(apiKey, selectedModel);
+                              saveAllSettings();
                               setShowSettings(false);
                               setIsAdminUnlocked(false);
                             }}
@@ -1396,7 +1817,7 @@ export default function Home() {
       >
         <div className="inline-flex items-center gap-2 px-4 py-2 glass rounded-full text-sm text-sky-400 mb-4">
           <BrainCircuit size={16} />
-          <span className="font-bold tracking-widest uppercase">oci 질문</span>
+          <span className="font-bold tracking-widest uppercase">라라퀴즈</span>
         </div>
         <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
           어떤 문서든 <br />

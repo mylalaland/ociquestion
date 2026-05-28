@@ -18,7 +18,7 @@ export async function extractTextFromPdf(file: File, startPage: number = 1, endP
   for (let i = start; i <= end; i++) {
     const page = await pdf.getPage(i);
     const content = await page.getTextContent();
-    const strings = content.items.map((item: any) => item.str);
+    const strings = (content.items as { str: string }[]).map((item) => item.str);
     results.push({
       pageNumber: i,
       text: strings.join(' ')
@@ -28,16 +28,28 @@ export async function extractTextFromPdf(file: File, startPage: number = 1, endP
   return results;
 }
 
+interface OciLine {
+  text: string;
+}
+
+interface OciPage {
+  lines?: OciLine[];
+}
+
+interface OciData {
+  pages?: OciPage[];
+}
+
 export function parseOciText(jsonStr: string): string {
   try {
-    const data = JSON.parse(jsonStr);
+    const data = JSON.parse(jsonStr) as OciData;
     // Simple parser for common OCI Document Understanding JSON
     // Users might just paste text too, but if it's JSON, we handle it.
     if (data.pages) {
-      return data.pages.map((p: any) => p.lines?.map((l: any) => l.text).join(' ')).join('\n');
+      return data.pages.map((p) => p.lines?.map((l) => l.text).join(' ') || '').join('\n');
     }
     return jsonStr; // fallback
-  } catch (e) {
+  } catch {
     return jsonStr; // Not a JSON, just return as is
   }
 }

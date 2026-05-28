@@ -18,6 +18,70 @@ interface QuizViewProps {
   onFinalize?: (score: number) => void;
 }
 
+export function isAnswerCorrect(q: QuizQuestion, answer: string): boolean {
+  if (!q.correctAnswer) return false;
+  
+  const cleanAns = answer.trim();
+  const cleanCorrect = q.correctAnswer.trim();
+  
+  // 1. Exact match
+  if (cleanAns === cleanCorrect) return true;
+  
+  // If it has options (MULTIPLE_CHOICE or CSAT)
+  if (q.options && q.options.length > 0) {
+    const ansIdx = q.options.indexOf(answer); // index of user's chosen option (0-4)
+    
+    // Check if correct answer is a number/index
+    // Match: digits (e.g., "3", "3번", "(3)", "[3]") or circular digits ("①" ~ "⑤")
+    const numMatch = cleanCorrect.match(/(\d+)/);
+    const circularNumbers = ["①", "②", "③", "④", "⑤"];
+    let correctIdx = -1;
+    
+    if (numMatch) {
+      correctIdx = parseInt(numMatch[1], 10) - 1;
+    } else {
+      // Check circular numbers
+      for (let idx = 0; idx < circularNumbers.length; idx++) {
+        if (cleanCorrect.includes(circularNumbers[idx])) {
+          correctIdx = idx;
+          break;
+        }
+      }
+    }
+    
+    if (correctIdx >= 0 && correctIdx < q.options.length) {
+      if (ansIdx === correctIdx) return true;
+    }
+    
+    // 2. Normalized match of option text
+    // E.g., q.correctAnswer is "3. 서울" or "서울" or "서울" with different spacing
+    const normalize = (str: string) => {
+      // Remove prefixes like "1. ", "3번 ", "(4) ", "① "
+      const s = str.replace(/^(\d+[\.\s]|\d+번\s*|[\(\[\{]\d+[\)\]\}]\s*|[①②③④⑤]\s*)/, '');
+      // Remove all spaces and special punctuation for comparison
+      return s.replace(/[\s\p{P}]/gu, '');
+    };
+    
+    const normCorrect = normalize(cleanCorrect);
+    const normAns = normalize(cleanAns);
+    
+    if (normCorrect && normAns && (normCorrect === normAns || normCorrect.includes(normAns) || normAns.includes(normCorrect))) {
+      return true;
+    }
+    
+    // Also check if any option itself matches the correctAnswer
+    // We can find the actual correct option's index this way
+    for (let idx = 0; idx < q.options.length; idx++) {
+      const optNorm = normalize(q.options[idx]);
+      if (optNorm && normCorrect && (optNorm === normCorrect || normCorrect.includes(optNorm) || optNorm.includes(normCorrect))) {
+        if (ansIdx === idx) return true;
+      }
+    }
+  }
+  
+  return false;
+}
+
 export default function QuizView({ 
   questions, 
   onCorrect, 
@@ -39,10 +103,10 @@ export default function QuizView({
 
   const fontSizeClass = quizFontSize === 'small' ? 'text-base' : quizFontSize === 'large' ? 'text-3xl' : 'text-xl';
 
-  const handleAnswerSelect = (qId: string, answer: string, correctAnswer: string) => {
+  const handleAnswerSelect = (qId: string, answer: string, q: QuizQuestion) => {
     if (isFinalized || userAnswers[qId]) return;
 
-    const correct = answer === correctAnswer;
+    const correct = isAnswerCorrect(q, answer);
     
     if (!correct && retryMultipleChoice) {
       const currentDisabled = disabledOptions[qId] || [];
@@ -172,7 +236,7 @@ export default function QuizView({
               <div className="grid grid-cols-1 gap-3">
                 {q.options.map((opt, i) => {
                   const isSelected = userAnswers[q.id] === opt;
-                  const isThisCorrectOption = opt === q.correctAnswer;
+                  const isThisCorrectOption = isAnswerCorrect(q, opt);
                   const isOptionDisabled = currentDisabled.includes(opt);
 
                   let btnClass = "text-left p-4 rounded-xl border transition-all flex justify-between items-center ";
@@ -198,7 +262,7 @@ export default function QuizView({
                       key={i}
                       disabled={isFinalized || answered || isOptionDisabled}
                       className={btnClass}
-                      onClick={() => handleAnswerSelect(q.id, opt, q.correctAnswer)}
+                      onClick={() => handleAnswerSelect(q.id, opt, q)}
                     >
                       <div className="flex items-center">
                         <span className={`mr-3 font-bold ${answered || isOptionDisabled ? '' : 'text-sky-500'}`}>{i + 1}.</span> 

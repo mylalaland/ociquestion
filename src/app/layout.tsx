@@ -13,13 +13,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "oci 질문",
-  description: "OCI Questions - AI Document Quizzer App",
+  title: "라라퀴즈",
+  description: "LalaQuiz - AI Document Quizzer App",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "oci 질문",
+    title: "라라퀴즈",
   },
   formatDetection: {
     telephone: false,

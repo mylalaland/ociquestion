@@ -1,8 +1,8 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.oci.questions',
-  appName: 'oci 질문',
+  appId: 'com.lalaquiz.app',
+  appName: '라라퀴즈',
   webDir: 'out'
 };
 

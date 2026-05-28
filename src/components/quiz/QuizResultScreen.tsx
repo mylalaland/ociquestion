@@ -151,7 +151,7 @@ export default function QuizResultScreen({
   const buildShareText = () => {
     const now = new Date();
     const dateStr = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;
-    let text = `🎯 [oci 질문] 성적표 🎯\n`;
+    let text = `🎯 [라라퀴즈] 성적표 🎯\n`;
     text += `━━━━━━━━━━━━━━━━━━\n`;
     text += `📚 과목: ${subject || '미지정'}\n`;
     text += `📅 날짜: ${dateStr}\n`;
@@ -177,7 +177,7 @@ export default function QuizResultScreen({
     const text = buildShareText();
     if (navigator.share) {
       try {
-        await navigator.share({ title: '내 퀴즈 성적표 - oci 질문', text });
+        await navigator.share({ title: '내 퀴즈 성적표 - 라라퀴즈', text });
       } catch { /* cancelled */ }
     } else {
       await handleCopyText();
@@ -223,8 +223,9 @@ export default function QuizResultScreen({
         link.download = 'quiz-result.png';
         link.click();
       }
-    } catch (e: any) {
-      alert('이미지 캡처 중 오류: ' + (e.message || '알 수 없는 오류'));
+    } catch (e: unknown) {
+      const err = e as Error;
+      alert('이미지 캡처 중 오류: ' + (err.message || '알 수 없는 오류'));
     }
   };
 
@@ -243,8 +244,9 @@ export default function QuizResultScreen({
       const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
       doc.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
       doc.save(`성적표_${subject || 'quiz'}.pdf`);
-    } catch (e: any) {
-      alert('PDF 저장 중 오류: ' + (e.message || '알 수 없는 오류'));
+    } catch (e: unknown) {
+      const err = e as Error;
+      alert('PDF 저장 중 오류: ' + (err.message || '알 수 없는 오류'));
     }
   };
 

@@ -84,3 +84,39 @@ export async function deleteQuizHistory(id: string): Promise<void> {
     request.onerror = () => reject(request.error);
   });
 }
+
+export interface PointLog {
+  id: string;
+  date: string;       // ISO string
+  quizId: string;
+  quizTitle: string;
+  subject: string;
+  earnedPoints: number;
+  score: number;       // 맞춘 문제 수
+  totalQuestions: number;
+}
+
+export function getPointLogs(): PointLog[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const data = localStorage.getItem('OCI_QUIZ_POINT_LOGS');
+    return data ? JSON.parse(data) : [];
+  } catch (e) {
+    console.error('Failed to get point logs:', e);
+    return [];
+  }
+}
+
+export function savePointLog(log: PointLog): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const logs = getPointLogs();
+    // Avoid duplicates for the same quizId/log.id
+    const filtered = logs.filter(l => l.quizId !== log.quizId);
+    filtered.unshift(log); // Add new log to the beginning (descending order)
+    localStorage.setItem('OCI_QUIZ_POINT_LOGS', JSON.stringify(filtered));
+  } catch (e) {
+    console.error('Failed to save point log:', e);
+  }
+}
+
