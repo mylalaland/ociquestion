@@ -3,5 +3,5 @@
     <string name="app_name">Lala Quiz</string>
     <string name="title_activity_main">Lala Quiz</string>
     <string name="package_name">com.lalaquiz.app</string>
-    <string name="custom_url_scheme">com.lalaquiz.app</string>
+    <string name="custom_url_scheme">lalaquiz</string>
 </resources>
