@@ -10,7 +10,7 @@
 html, body {
   max-width: 100vw;
   width: 100%;
-  overflow-x: hidden;
+  overflow-x: hidden !important;
   position: relative;
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
@@ -21,6 +21,12 @@ body {
   color: var(--foreground);
   min-height: 100vh;
   font-family: 'Geist', sans-serif;
+}
+
+/* Prevent horizontal scroll globally */
+main, #__next, .app-container {
+  max-width: 100vw;
+  overflow-x: hidden !important;
 }
 
 .glass {
@@ -124,6 +130,25 @@ body {
   animation: confetti-fall linear forwards, confetti-sway ease-in-out infinite;
 }
 
+/* ======= Fireworks for Perfect Score ======= */
+@keyframes firework-burst {
+  0% { transform: scale(0); opacity: 1; }
+  50% { transform: scale(1.5); opacity: 0.8; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+
+@keyframes firework-sparkle {
+  0%, 100% { opacity: 0; transform: scale(0.5); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+.firework-particle {
+  position: absolute;
+  border-radius: 50%;
+  animation: firework-burst 2s ease-out infinite, firework-sparkle 1.5s ease-in-out infinite;
+  box-shadow: 0 0 6px currentColor, 0 0 12px currentColor;
+}
+
 /* ======= Score Circle Animation ======= */
 @keyframes score-circle-fill {
   from { stroke-dashoffset: 314; }
@@ -178,7 +203,9 @@ body {
   background: rgba(255,255,255,0.2);
 }
 
-/* ======= Light Mode Overrides ======= */
+/* ╔══════════════════════════════════════╗
+   ║     THEME: LIGHT (밝은 모드)          ║
+   ╚══════════════════════════════════════╝ */
 .light {
   --background: #f8fafc;
   --foreground: #0f172a;
@@ -198,14 +225,12 @@ body {
   box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.04) !important;
 }
 
-/* bg-slate-950 wildcards -> light slate background */
 .light .bg-slate-950,
 .light [class*="bg-slate-950/"],
 .light [class*="bg-slate-950\/"] {
   background-color: #f1f5f9 !important;
 }
 
-/* bg-slate-900 wildcards -> solid white modal panel & cards */
 .light .bg-slate-900,
 .light [class*="bg-slate-900/"],
 .light [class*="bg-slate-900\/"] {
@@ -213,14 +238,12 @@ body {
   color: #0f172a !important;
 }
 
-/* bg-slate-800 wildcards -> soft gray inner cards and selections */
 .light .bg-slate-800,
 .light [class*="bg-slate-800/"],
 .light [class*="bg-slate-800\/"] {
   background-color: #f8fafc !important;
 }
 
-/* Border overrides */
 .light .border-slate-800,
 .light .border-slate-700,
 .light [class*="border-slate-800/"],
@@ -230,7 +253,6 @@ body {
   border-color: #cbd5e1 !important;
 }
 
-/* General Text Overrides */
 .light .text-white,
 .light .text-slate-100,
 .light .text-slate-200,
@@ -238,87 +260,213 @@ body {
   color: #0f172a !important;
 }
 
-.light .text-slate-400 {
-  color: #334155 !important;
-}
-
+.light .text-slate-400 { color: #334155 !important; }
 .light .text-slate-500,
-.light .text-slate-600 {
-  color: #64748b !important;
-}
+.light .text-slate-600 { color: #64748b !important; }
 
-/* Deep High-contrast Colors for badging and numbers in light mode */
-.light .text-emerald-400,
-.light .text-emerald-300,
-.light .text-emerald-200,
-.light .text-emerald-100 { color: #166534 !important; }
+.light .text-emerald-400, .light .text-emerald-300,
+.light .text-emerald-200, .light .text-emerald-100 { color: #166534 !important; }
+.light .text-sky-400, .light .text-sky-300,
+.light .text-sky-200, .light .text-sky-100 { color: #0369a1 !important; }
+.light .text-amber-400, .light .text-amber-300,
+.light .text-amber-200, .light .text-amber-100 { color: #b45309 !important; }
+.light .text-indigo-400, .light .text-indigo-300,
+.light .text-indigo-200, .light .text-indigo-100 { color: #3730a3 !important; }
+.light .text-rose-400, .light .text-rose-300,
+.light .text-rose-200, .light .text-rose-100 { color: #9f1239 !important; }
 
-.light .text-sky-400,
-.light .text-sky-300,
-.light .text-sky-200,
-.light .text-sky-100 { color: #0369a1 !important; }
-
-.light .text-amber-400,
-.light .text-amber-300,
-.light .text-amber-200,
-.light .text-amber-100 { color: #b45309 !important; }
-
-.light .text-indigo-400,
-.light .text-indigo-300,
-.light .text-indigo-200,
-.light .text-indigo-100 { color: #3730a3 !important; }
-
-.light .text-rose-400,
-.light .text-rose-300,
-.light .text-rose-200,
-.light .text-rose-100 { color: #9f1239 !important; }
-
-/* Transparencies for status colors in light mode */
-.light .bg-emerald-500\/10,
-.light .bg-emerald-500\/20,
+.light .bg-emerald-500\/10, .light .bg-emerald-500\/20,
 .light .bg-emerald-500\/30 { background-color: #dcfce7 !important; color: #166534 !important; border-color: #86efac !important; }
-
-.light .bg-sky-500\/10,
-.light .bg-sky-500\/20,
+.light .bg-sky-500\/10, .light .bg-sky-500\/20,
 .light .bg-sky-500\/30 { background-color: #e0f2fe !important; color: #0369a1 !important; border-color: #7dd3fc !important; }
-
-.light .bg-amber-500\/10,
-.light .bg-amber-500\/20,
+.light .bg-amber-500\/10, .light .bg-amber-500\/20,
 .light .bg-amber-500\/30 { background-color: #fef3c7 !important; color: #b45309 !important; border-color: #fde047 !important; }
 
-/* Hover transitions inside light mode */
-.light .hover\:bg-white\/10:hover {
-  background-color: rgba(15, 23, 42, 0.08) !important;
-}
-.light .hover\:bg-white\/5:hover {
-  background-color: rgba(15, 23, 42, 0.04) !important;
-}
+.light .hover\:bg-white\/10:hover { background-color: rgba(15, 23, 42, 0.08) !important; }
+.light .hover\:bg-white\/5:hover { background-color: rgba(15, 23, 42, 0.04) !important; }
 
-/* Input field styles */
 .light input, .light select, .light textarea {
   background-color: #ffffff !important;
   color: #0f172a !important;
   border: 1px solid #cbd5e1 !important;
 }
-.light input::placeholder {
-  color: #94a3b8 !important;
+.light input::placeholder { color: #94a3b8 !important; }
+
+.light text { fill: #334155 !important; }
+.light line { stroke: #cbd5e1 !important; }
+.light circle { stroke: #ffffff !important; }
+
+.light .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(15, 23, 42, 0.15) !important; }
+.light .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(15, 23, 42, 0.25) !important; }
+
+.light .shimmer-text {
+  background: linear-gradient(90deg, #0284c7, #7c3aed, #0284c7) !important;
+  background-size: 200% auto !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
 }
 
-/* SVG Chart label and grid line coloring for Light Mode */
-.light text {
-  fill: #334155 !important;
-}
-.light line {
-  stroke: #cbd5e1 !important;
-}
-.light circle {
-  stroke: #ffffff !important;
+/* ╔══════════════════════════════════════╗
+   ║     THEME: YELLOW (노란 모드)         ║
+   ╚══════════════════════════════════════╝ */
+.yellow {
+  --background: #fefce8;
+  --foreground: #422006;
+  --primary: #d97706;
+  --accent: #c2410c;
 }
 
-/* Custom scrollbars */
-.light .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(15, 23, 42, 0.15) !important;
+.yellow body {
+  background: radial-gradient(circle at top right, #fef9c3, #fefce8) !important;
+  color: #422006 !important;
 }
-.light .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(15, 23, 42, 0.25) !important;
+
+.yellow .glass {
+  background: rgba(255, 251, 235, 0.8) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(161, 98, 7, 0.12) !important;
+  box-shadow: 0 10px 30px -10px rgba(161, 98, 7, 0.06) !important;
+}
+
+.yellow .bg-slate-950,
+.yellow [class*="bg-slate-950/"],
+.yellow [class*="bg-slate-950\/"] { background-color: #fef9c3 !important; }
+.yellow .bg-slate-900,
+.yellow [class*="bg-slate-900/"],
+.yellow [class*="bg-slate-900\/"] { background-color: #fffbeb !important; color: #422006 !important; }
+.yellow .bg-slate-800,
+.yellow [class*="bg-slate-800/"],
+.yellow [class*="bg-slate-800\/"] { background-color: #fef3c7 !important; }
+
+.yellow .border-slate-800, .yellow .border-slate-700,
+.yellow [class*="border-slate-800/"], .yellow [class*="border-slate-800\/"],
+.yellow [class*="border-slate-700/"], .yellow [class*="border-slate-700\/"] { border-color: #fde68a !important; }
+
+.yellow .text-white, .yellow .text-slate-100,
+.yellow .text-slate-200, .yellow .text-slate-300 { color: #422006 !important; }
+.yellow .text-slate-400 { color: #78350f !important; }
+.yellow .text-slate-500, .yellow .text-slate-600 { color: #92400e !important; }
+
+.yellow .text-sky-400, .yellow .text-sky-300 { color: #b45309 !important; }
+.yellow .text-emerald-400, .yellow .text-emerald-300 { color: #166534 !important; }
+.yellow .text-amber-400, .yellow .text-amber-300 { color: #92400e !important; }
+.yellow .text-rose-400, .yellow .text-rose-300 { color: #9f1239 !important; }
+
+.yellow input, .yellow select, .yellow textarea {
+  background-color: #fffbeb !important;
+  color: #422006 !important;
+  border: 1px solid #fde68a !important;
+}
+.yellow input::placeholder { color: #a16207 !important; }
+
+.yellow .btn-premium {
+  background: linear-gradient(135deg, #d97706, #ea580c) !important;
+}
+
+.yellow .shimmer-text {
+  background: linear-gradient(90deg, #d97706, #ea580c, #d97706) !important;
+  background-size: 200% auto !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
+/* ╔══════════════════════════════════════╗
+   ║     THEME: CAT (고양이 모드)          ║
+   ╚══════════════════════════════════════╝ */
+.cat {
+  --background: #fdf2f8;
+  --foreground: #4a044e;
+  --primary: #d946ef;
+  --accent: #f472b6;
+}
+
+.cat body {
+  background: radial-gradient(circle at top right, #fce7f3, #f5f3ff) !important;
+  color: #4a044e !important;
+}
+
+.cat .glass {
+  background: rgba(253, 242, 248, 0.85) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(217, 70, 239, 0.12) !important;
+  box-shadow: 0 10px 30px -10px rgba(217, 70, 239, 0.06) !important;
+}
+
+.cat .bg-slate-950,
+.cat [class*="bg-slate-950/"],
+.cat [class*="bg-slate-950\/"] { background-color: #fce7f3 !important; }
+.cat .bg-slate-900,
+.cat [class*="bg-slate-900/"],
+.cat [class*="bg-slate-900\/"] { background-color: #fdf4ff !important; color: #4a044e !important; }
+.cat .bg-slate-800,
+.cat [class*="bg-slate-800/"],
+.cat [class*="bg-slate-800\/"] { background-color: #fce7f3 !important; }
+
+.cat .border-slate-800, .cat .border-slate-700,
+.cat [class*="border-slate-800/"], .cat [class*="border-slate-800\/"],
+.cat [class*="border-slate-700/"], .cat [class*="border-slate-700\/"] { border-color: #f0abfc !important; }
+
+.cat .text-white, .cat .text-slate-100,
+.cat .text-slate-200, .cat .text-slate-300 { color: #4a044e !important; }
+.cat .text-slate-400 { color: #701a75 !important; }
+.cat .text-slate-500, .cat .text-slate-600 { color: #86198f !important; }
+
+.cat .text-sky-400, .cat .text-sky-300 { color: #c026d3 !important; }
+.cat .text-emerald-400, .cat .text-emerald-300 { color: #059669 !important; }
+.cat .text-amber-400, .cat .text-amber-300 { color: #d97706 !important; }
+.cat .text-rose-400, .cat .text-rose-300 { color: #e11d48 !important; }
+
+.cat input, .cat select, .cat textarea {
+  background-color: #fdf4ff !important;
+  color: #4a044e !important;
+  border: 1px solid #f0abfc !important;
+}
+.cat input::placeholder { color: #c026d3 !important; }
+
+.cat .btn-premium {
+  background: linear-gradient(135deg, #d946ef, #ec4899) !important;
+}
+
+.cat .shimmer-text {
+  background: linear-gradient(90deg, #d946ef, #ec4899, #d946ef) !important;
+  background-size: 200% auto !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
+/* Cat paw decorations */
+.cat body::before {
+  content: '🐾';
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  font-size: 40px;
+  opacity: 0.15;
+  pointer-events: none;
+  z-index: 0;
+}
+.cat body::after {
+  content: '🐱';
+  position: fixed;
+  top: 60px;
+  left: 20px;
+  font-size: 30px;
+  opacity: 0.1;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ======= Fireworks Effect for Perfect Score ======= */
+@keyframes firework-burst {
+  0% { transform: translate(var(--x), var(--y)) scale(0); opacity: 1; }
+  100% { transform: translate(var(--x), var(--y)) scale(1); opacity: 0; }
+}
+
+@keyframes sparkle {
+  0%, 100% { opacity: 0; transform: scale(0); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+.sparkle {
+  animation: sparkle 1.5s ease-in-out infinite;
 }

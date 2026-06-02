@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, XCircle, Info, BookOpen, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 import { QuizQuestion } from '@/lib/ai/types';
@@ -16,6 +16,7 @@ interface QuizViewProps {
   difficulty?: string;
   isFinalized?: boolean;
   onFinalize?: (score: number) => void;
+  answerRevealTiming?: 'immediate' | 'after_all';
 }
 
 export function isAnswerCorrect(q: QuizQuestion, answer: string): boolean {
@@ -24,15 +25,18 @@ export function isAnswerCorrect(q: QuizQuestion, answer: string): boolean {
   const cleanAns = answer.trim();
   const cleanCorrect = q.correctAnswer.trim();
   
+  // O/X type
+  if (q.type === 'TRUE_FALSE') {
+    return cleanAns === cleanCorrect;
+  }
+  
   // 1. Exact match
   if (cleanAns === cleanCorrect) return true;
   
   // If it has options (MULTIPLE_CHOICE or CSAT)
   if (q.options && q.options.length > 0) {
-    const ansIdx = q.options.indexOf(answer); // index of user's chosen option (0-4)
+    const ansIdx = q.options.indexOf(answer);
     
-    // Check if correct answer is a number/index
-    // Match: digits (e.g., "3", "3번", "(3)", "[3]") or circular digits ("①" ~ "⑤")
     const numMatch = cleanCorrect.match(/(\d+)/);
     const circularNumbers = ["①", "②", "③", "④", "⑤"];
     let correctIdx = -1;
@@ -40,7 +44,6 @@ export function isAnswerCorrect(q: QuizQuestion, answer: string): boolean {
     if (numMatch) {
       correctIdx = parseInt(numMatch[1], 10) - 1;
     } else {
-      // Check circular numbers
       for (let idx = 0; idx < circularNumbers.length; idx++) {
         if (cleanCorrect.includes(circularNumbers[idx])) {
           correctIdx = idx;
@@ -53,12 +56,8 @@ export function isAnswerCorrect(q: QuizQuestion, answer: string): boolean {
       if (ansIdx === correctIdx) return true;
     }
     
-    // 2. Normalized match of option text
-    // E.g., q.correctAnswer is "3. 서울" or "서울" or "서울" with different spacing
     const normalize = (str: string) => {
-      // Remove prefixes like "1. ", "3번 ", "(4) ", "① "
       const s = str.replace(/^(\d+[\.\s]|\d+번\s*|[\(\[\{]\d+[\)\]\}]\s*|[①②③④⑤]\s*)/, '');
-      // Remove all spaces and special punctuation for comparison
       return s.replace(/[\s\p{P}]/gu, '');
     };
     
@@ -69,8 +68,6 @@ export function isAnswerCorrect(q: QuizQuestion, answer: string): boolean {
       return true;
     }
     
-    // Also check if any option itself matches the correctAnswer
-    // We can find the actual correct option's index this way
     for (let idx = 0; idx < q.options.length; idx++) {
       const optNorm = normalize(q.options[idx]);
       if (optNorm && normCorrect && (optNorm === normCorrect || normCorrect.includes(optNorm) || optNorm.includes(normCorrect))) {
@@ -92,18 +89,24 @@ export default function QuizView({
   showContextTiming = 'always',
   difficulty,
   isFinalized = false,
-  onFinalize
+  onFinalize,
+  answerRevealTiming = 'immediate',
 }: QuizViewProps) {
   const [userAnswers, setUserAnswers] = useState<Record<string, string>>({});
+  const [userAnswers2, setUserAnswers2] = useState<Record<string, string>>({}); // 2nd attempt
   const [isCorrect, setIsCorrect] = useState<Record<string, boolean>>({});
   const [showExplanation, setShowExplanation] = useState<Record<string, boolean>>({});
   const [shortAnswerInputs, setShortAnswerInputs] = useState<Record<string, string>>({});
   const [essayInputs, setEssayInputs] = useState<Record<string, string>>({});
   const [disabledOptions, setDisabledOptions] = useState<Record<string, string[]>>({});
+  const [pendingAnswers, setPendingAnswers] = useState<Record<string, { answer: string; correct: boolean; halfPoints: boolean }>>({});
+  const [allRevealed, setAllRevealed] = useState(false);
 
   const fontSizeClass = quizFontSize === 'small' ? 'text-base' : quizFontSize === 'large' ? 'text-3xl' : 'text-xl';
+  
+  const isAfterAll = answerRevealTiming === 'after_all';
 
-  const handleAnswerSelect = (qId: string, answer: string, q: QuizQuestion) => {
+  const handleAnswerSelect = useCallback((qId: string, answer: string, q: QuizQuestion) => {
     if (isFinalized || userAnswers[qId]) return;
 
     const correct = isAnswerCorrect(q, answer);
@@ -111,23 +114,43 @@ export default function QuizView({
     if (!correct && retryMultipleChoice) {
       const currentDisabled = disabledOptions[qId] || [];
       if (currentDisabled.length === 0) {
-        // First strike — give second chance
         setDisabledOptions(prev => ({ ...prev, [qId]: [...currentDisabled, answer] }));
+        setUserAnswers2(prev => ({ ...prev, [qId]: answer })); // Save first wrong attempt
         return;
       }
     }
 
-    // Finalize answer
     setUserAnswers(prev => ({ ...prev, [qId]: answer }));
-    setIsCorrect(prev => ({ ...prev, [qId]: correct }));
     
-    if (correct) {
+    if (isAfterAll) {
+      // Defer reveal
       const isSecondAttempt = (disabledOptions[qId] || []).length > 0;
-      onCorrect(qId, { halfPoints: isSecondAttempt });
+      setPendingAnswers(prev => ({ ...prev, [qId]: { answer, correct, halfPoints: isSecondAttempt } }));
     } else {
-      onWrong(qId);
+      setIsCorrect(prev => ({ ...prev, [qId]: correct }));
+      if (correct) {
+        const isSecondAttempt = (disabledOptions[qId] || []).length > 0;
+        onCorrect(qId, { halfPoints: isSecondAttempt });
+      } else {
+        onWrong(qId);
+      }
     }
-  };
+  }, [isFinalized, userAnswers, retryMultipleChoice, disabledOptions, isAfterAll, onCorrect, onWrong]);
+
+  const handleOXSelect = useCallback((qId: string, answer: 'O' | 'X', q: QuizQuestion) => {
+    if (isFinalized || userAnswers[qId]) return;
+    
+    const correct = q.correctAnswer === answer;
+    setUserAnswers(prev => ({ ...prev, [qId]: answer }));
+    
+    if (isAfterAll) {
+      setPendingAnswers(prev => ({ ...prev, [qId]: { answer, correct, halfPoints: false } }));
+    } else {
+      setIsCorrect(prev => ({ ...prev, [qId]: correct }));
+      if (correct) onCorrect(qId);
+      else onWrong(qId);
+    }
+  }, [isFinalized, userAnswers, isAfterAll, onCorrect, onWrong]);
 
   const handleShortAnswerSubmit = (qId: string, q: QuizQuestion) => {
     const answer = shortAnswerInputs[qId];
@@ -144,8 +167,6 @@ export default function QuizView({
   const handleEssaySubmit = (qId: string) => {
     const answer = essayInputs[qId];
     if (isFinalized || userAnswers[qId] || !answer || !answer.trim()) return;
-    
-    // Save to reveal model answer — requires self-grading
     setUserAnswers(prev => ({ ...prev, [qId]: answer.trim() }));
   };
 
@@ -160,8 +181,23 @@ export default function QuizView({
     setShowExplanation(prev => ({ ...prev, [qId]: !prev[qId] }));
   };
 
-  const answeredCount = questions.filter(q => isCorrect[q.id] !== undefined).length;
-  const isFinished = answeredCount === questions.length;
+  // "Reveal All" for after_all mode
+  const handleRevealAll = () => {
+    const newCorrect: Record<string, boolean> = { ...isCorrect };
+    Object.entries(pendingAnswers).forEach(([qId, pa]) => {
+      newCorrect[qId] = pa.correct;
+      if (pa.correct) onCorrect(qId, { halfPoints: pa.halfPoints });
+      else onWrong(qId);
+    });
+    setIsCorrect(newCorrect);
+    setAllRevealed(true);
+  };
+
+  const answeredCount = isAfterAll 
+    ? Object.keys(pendingAnswers).length + questions.filter(q => isCorrect[q.id] !== undefined && !pendingAnswers[q.id]).length
+    : questions.filter(q => isCorrect[q.id] !== undefined).length;
+  const allAnswered = questions.every(q => userAnswers[q.id]);
+  const isFinished = isAfterAll ? allRevealed : answeredCount === questions.length;
   const score = Object.values(isCorrect).filter(Boolean).length;
 
   const typeLabel = (type: string) => {
@@ -170,9 +206,12 @@ export default function QuizView({
       case 'SHORT_ANSWER': return '단답형';
       case 'ESSAY': return '서술형';
       case 'CSAT': return '수능형';
+      case 'TRUE_FALSE': return 'O/X';
       default: return type;
     }
   };
+
+  const showResult = (qId: string) => !isAfterAll || allRevealed;
 
   return (
     <div className="space-y-12">
@@ -180,13 +219,15 @@ export default function QuizView({
       <div className="sticky top-0 z-10 bg-slate-950/80 backdrop-blur-md py-3 px-4 rounded-2xl border border-slate-800 mb-6">
         <div className="flex justify-between items-center text-sm mb-2">
           <span className="text-slate-400">진행률</span>
-          <span className="font-bold text-white">{answeredCount}/{questions.length} 완료</span>
+          <span className="font-bold text-white">
+            {Object.keys(userAnswers).length}/{questions.length} 완료
+          </span>
         </div>
         <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
           <motion.div
             className="h-full bg-gradient-to-r from-sky-500 to-indigo-500 rounded-full"
             initial={{ width: 0 }}
-            animate={{ width: `${(answeredCount / questions.length) * 100}%` }}
+            animate={{ width: `${(Object.keys(userAnswers).length / questions.length) * 100}%` }}
             transition={{ duration: 0.5, ease: 'easeOut' }}
           />
         </div>
@@ -197,6 +238,7 @@ export default function QuizView({
         const correct = isCorrect[q.id];
         const currentDisabled = disabledOptions[q.id] || [];
         const isSecondChanceActive = currentDisabled.length > 0 && !answered;
+        const resultVisible = showResult(q.id);
         
         return (
           <motion.div 
@@ -207,7 +249,7 @@ export default function QuizView({
             className={`glass p-8 rounded-3xl space-y-6 flex flex-col ${isSecondChanceActive ? 'ring-2 ring-amber-500/50' : ''}`}
           >
             <div className="flex justify-between items-start mb-2">
-              <div className="flex gap-2 items-center">
+              <div className="flex gap-2 items-center flex-wrap">
                 <span className="px-3 py-1 bg-sky-500/20 text-sky-400 rounded-full text-xs font-bold uppercase tracking-wider">
                   {typeLabel(q.type)}
                 </span>
@@ -220,6 +262,16 @@ export default function QuizView({
               <span className="text-slate-500 text-sm font-medium">문제 {idx + 1}</span>
             </div>
 
+            {/* CSAT Passage */}
+            {q.type === 'CSAT' && q.passage && (
+              <div className="bg-slate-800/60 rounded-2xl p-5 border border-slate-700/50 text-sm leading-relaxed text-slate-300 whitespace-pre-wrap">
+                <div className="text-xs text-amber-400 font-bold mb-2 flex items-center gap-1">
+                  📖 지문
+                </div>
+                {q.passage}
+              </div>
+            )}
+
             <h3 className={`font-bold leading-relaxed ${fontSizeClass} ${quizFontSize === 'large' ? 'mb-4' : ''}`}>
               {q.question}
             </h3>
@@ -231,24 +283,70 @@ export default function QuizView({
               </div>
             )}
 
-            {/* Multiple Choice / CSAT with options */}
-            {q.options && q.options.length > 0 && (
+            {/* ═══ TRUE_FALSE (O/X) ═══ */}
+            {q.type === 'TRUE_FALSE' && (
+              <div className="flex gap-4 justify-center">
+                {(['O', 'X'] as const).map(choice => {
+                  const isSelected = userAnswers[q.id] === choice;
+                  const isThisCorrect = q.correctAnswer === choice;
+                  
+                  let btnStyle = 'w-28 h-28 rounded-3xl border-2 text-5xl font-black transition-all flex items-center justify-center ';
+                  
+                  if (answered && resultVisible) {
+                    if (isThisCorrect) {
+                      btnStyle += 'border-emerald-500 bg-emerald-500/20 text-emerald-400 shadow-lg shadow-emerald-500/20';
+                    } else if (isSelected && correct === false) {
+                      btnStyle += 'border-rose-500 bg-rose-500/20 text-rose-400';
+                    } else {
+                      btnStyle += 'border-slate-800 text-slate-600 opacity-40';
+                    }
+                  } else if (answered && !resultVisible) {
+                    btnStyle += isSelected
+                      ? 'border-sky-500 bg-sky-500/20 text-sky-400'
+                      : 'border-slate-700 text-slate-500 opacity-50';
+                  } else {
+                    btnStyle += choice === 'O'
+                      ? 'border-emerald-500/50 hover:bg-emerald-500/10 text-emerald-400 hover:border-emerald-400 hover:scale-105'
+                      : 'border-rose-500/50 hover:bg-rose-500/10 text-rose-400 hover:border-rose-400 hover:scale-105';
+                  }
+                  
+                  return (
+                    <button key={choice} disabled={isFinalized || answered} className={btnStyle}
+                      onClick={() => handleOXSelect(q.id, choice, q)}>
+                      {choice}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* ═══ Multiple Choice / CSAT with options ═══ */}
+            {q.type !== 'TRUE_FALSE' && q.options && q.options.length > 0 && (
               <div className="grid grid-cols-1 gap-3">
                 {q.options.map((opt, i) => {
                   const isSelected = userAnswers[q.id] === opt;
+                  const isFirstWrong = userAnswers2[q.id] === opt; // First wrong attempt
                   const isThisCorrectOption = isAnswerCorrect(q, opt);
                   const isOptionDisabled = currentDisabled.includes(opt);
 
                   let btnClass = "text-left p-4 rounded-xl border transition-all flex justify-between items-center ";
                   
-                  if (answered) {
+                  if (answered && resultVisible) {
                     if (isThisCorrectOption) {
                       btnClass += "border-emerald-500 bg-emerald-500/10 text-emerald-300";
                     } else if (isSelected && !correct) {
                        btnClass += "border-rose-500 bg-rose-500/10 text-rose-300";
+                    } else if (isFirstWrong) {
+                       btnClass += "border-rose-500/50 bg-rose-500/5 text-rose-400/60 line-through";
                     } else {
                        btnClass += "border-slate-800 text-slate-500 opacity-50";
                     }
+                  } else if (answered && !resultVisible) {
+                    btnClass += isSelected
+                      ? "border-sky-500 bg-sky-500/10 text-sky-300"
+                      : isFirstWrong
+                        ? "border-rose-500/50 bg-rose-500/5 text-rose-400/60 line-through"
+                        : "border-slate-800 text-slate-500 opacity-50";
                   } else {
                     if (isOptionDisabled) {
                       btnClass += "border-rose-500/50 bg-rose-500/5 text-rose-500/50 opacity-60 line-through cursor-not-allowed";
@@ -268,15 +366,16 @@ export default function QuizView({
                         <span className={`mr-3 font-bold ${answered || isOptionDisabled ? '' : 'text-sky-500'}`}>{i + 1}.</span> 
                         {opt}
                       </div>
-                      {answered && isThisCorrectOption && <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />}
-                      {answered && isSelected && !correct && <XCircle size={18} className="text-rose-400 shrink-0" />}
+                      {answered && resultVisible && isThisCorrectOption && <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />}
+                      {answered && resultVisible && isSelected && !correct && <XCircle size={18} className="text-rose-400 shrink-0" />}
+                      {answered && resultVisible && isFirstWrong && !isSelected && <XCircle size={14} className="text-rose-400/40 shrink-0" />}
                     </button>
                   );
                 })}
               </div>
             )}
 
-            {/* Short Answer */}
+            {/* ═══ Short Answer ═══ */}
             {q.type === 'SHORT_ANSWER' && (!q.options || q.options.length === 0) && (
               <div className="space-y-4">
                 {answered ? (
@@ -297,16 +396,12 @@ export default function QuizView({
                       </div>
                       {isCorrect[q.id] === undefined && !isFinalized && (
                         <div className="mt-4 pt-4 border-t border-sky-500/20 flex gap-2 justify-end">
-                          <button 
-                            onClick={() => handleSelfGrade(q.id, true)}
-                            className="px-4 py-2 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 rounded-lg text-sm font-bold transition-colors"
-                          >
+                          <button onClick={() => handleSelfGrade(q.id, true)}
+                            className="px-4 py-2 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 rounded-lg text-sm font-bold transition-colors">
                             O 맞게 썼음 (정답)
                           </button>
-                          <button 
-                            onClick={() => handleSelfGrade(q.id, false)}
-                            className="px-4 py-2 bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 rounded-lg text-sm font-bold transition-colors"
-                          >
+                          <button onClick={() => handleSelfGrade(q.id, false)}
+                            className="px-4 py-2 bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 rounded-lg text-sm font-bold transition-colors">
                             X 틀렸음 (오답)
                           </button>
                         </div>
@@ -314,21 +409,14 @@ export default function QuizView({
                     </div>
                 ) : (
                   <div className="flex gap-3">
-                    <input 
-                      type="text"
-                      placeholder="짧게 답을 적어주세요..."
+                    <input type="text" placeholder="짧게 답을 적어주세요..."
                       value={shortAnswerInputs[q.id] || ''}
                       onChange={(e) => setShortAnswerInputs(prev => ({ ...prev, [q.id]: e.target.value }))}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleShortAnswerSubmit(q.id, q);
-                      }}
-                      className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    />
-                    <button 
-                      className="btn-premium px-6 py-2 rounded-xl text-sm font-bold whitespace-nowrap disabled:opacity-50"
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleShortAnswerSubmit(q.id, q); }}
+                      className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                    <button className="btn-premium px-6 py-2 rounded-xl text-sm font-bold whitespace-nowrap disabled:opacity-50"
                       onClick={() => handleShortAnswerSubmit(q.id, q)}
-                      disabled={isFinalized || !shortAnswerInputs[q.id]?.trim()}
-                    >
+                      disabled={isFinalized || !shortAnswerInputs[q.id]?.trim()}>
                       답안 제출
                     </button>
                   </div>
@@ -336,8 +424,8 @@ export default function QuizView({
               </div>
             )}
 
-            {/* Essay (서술형) */}
-            {q.type === 'ESSAY' && (!q.options || q.options.length === 0) && (
+            {/* ═══ Essay ═══ */}
+            {(q.type === 'ESSAY' || (q.type === 'CSAT' && (!q.options || q.options.length === 0))) && (
               <div className="space-y-4">
                 {answered ? (
                     <div className={`p-4 rounded-xl border ${isCorrect[q.id] === true ? 'border-emerald-500 bg-emerald-500/10 text-emerald-100' : isCorrect[q.id] === false ? 'border-rose-500 bg-rose-500/10 text-rose-100' : 'border-sky-500 bg-sky-500/10 text-slate-200'}`}>
@@ -357,16 +445,12 @@ export default function QuizView({
                       </div>
                       {isCorrect[q.id] === undefined && !isFinalized && (
                         <div className="mt-4 pt-4 border-t border-sky-500/20 flex gap-2 justify-end">
-                          <button 
-                            onClick={() => handleSelfGrade(q.id, true)}
-                            className="px-4 py-2 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 rounded-lg text-sm font-bold transition-colors"
-                          >
+                          <button onClick={() => handleSelfGrade(q.id, true)}
+                            className="px-4 py-2 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 rounded-lg text-sm font-bold transition-colors">
                             O 맞게 썼음 (정답)
                           </button>
-                          <button 
-                            onClick={() => handleSelfGrade(q.id, false)}
-                            className="px-4 py-2 bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 rounded-lg text-sm font-bold transition-colors"
-                          >
+                          <button onClick={() => handleSelfGrade(q.id, false)}
+                            className="px-4 py-2 bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 rounded-lg text-sm font-bold transition-colors">
                             X 틀렸음 (오답)
                           </button>
                         </div>
@@ -374,18 +458,14 @@ export default function QuizView({
                     </div>
                 ) : (
                   <div className="space-y-3">
-                    <textarea
-                      placeholder="자유롭게 답안을 서술하세요..."
+                    <textarea placeholder="자유롭게 답안을 서술하세요..."
                       value={essayInputs[q.id] || ''}
                       onChange={(e) => setEssayInputs(prev => ({ ...prev, [q.id]: e.target.value }))}
                       rows={4}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-none"
-                    />
-                    <button 
-                      className="btn-premium px-6 py-3 rounded-xl text-sm font-bold whitespace-nowrap disabled:opacity-50 w-full"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-none" />
+                    <button className="btn-premium px-6 py-3 rounded-xl text-sm font-bold whitespace-nowrap disabled:opacity-50 w-full"
                       onClick={() => handleEssaySubmit(q.id)}
-                      disabled={isFinalized || !essayInputs[q.id]?.trim()}
-                    >
+                      disabled={isFinalized || !essayInputs[q.id]?.trim()}>
                       답안 제출
                     </button>
                   </div>
@@ -393,79 +473,19 @@ export default function QuizView({
               </div>
             )}
 
-            {/* CSAT without options (fallback) */}
-            {q.type === 'CSAT' && (!q.options || q.options.length === 0) && (
-              <div className="space-y-4">
-                {answered ? (
-                    <div className={`p-4 rounded-xl border ${isCorrect[q.id] === true ? 'border-emerald-500 bg-emerald-500/10 text-emerald-100' : isCorrect[q.id] === false ? 'border-rose-500 bg-rose-500/10 text-rose-100' : 'border-sky-500 bg-sky-500/10 text-slate-200'}`}>
-                      <div className={`flex items-center gap-2 mb-4 font-bold ${isCorrect[q.id] === true ? 'text-emerald-400' : isCorrect[q.id] === false ? 'text-rose-400' : 'text-sky-400'}`}>
-                         <CheckCircle2 size={18} />
-                         {isCorrect[q.id] === undefined ? '제출 완료! 모범 답안과 비교하여 스스로 채점해주세요.' : '채점 완료 시스템에 기록되었습니다.'}
-                      </div>
-                      <div className="space-y-3 text-sm">
-                        <div>
-                          <span className="text-slate-400 text-xs uppercase tracking-wider block mb-1">내 답안</span>
-                          <p className="bg-slate-900/50 p-3 rounded-lg border border-slate-700 whitespace-pre-wrap">{userAnswers[q.id]}</p>
-                        </div>
-                        <div>
-                          <span className="text-emerald-400 text-xs uppercase tracking-wider block mb-1">💡 모범 답안</span>
-                          <p className="bg-emerald-500/10 p-3 rounded-lg border border-emerald-500/30 text-emerald-100 whitespace-pre-wrap">{q.correctAnswer}</p>
-                        </div>
-                      </div>
-                      {isCorrect[q.id] === undefined && !isFinalized && (
-                        <div className="mt-4 pt-4 border-t border-sky-500/20 flex gap-2 justify-end">
-                          <button 
-                            onClick={() => handleSelfGrade(q.id, true)}
-                            className="px-4 py-2 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 rounded-lg text-sm font-bold transition-colors"
-                          >
-                            O 맞게 썼음 (정답)
-                          </button>
-                          <button 
-                            onClick={() => handleSelfGrade(q.id, false)}
-                            className="px-4 py-2 bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 rounded-lg text-sm font-bold transition-colors"
-                          >
-                            X 틀렸음 (오답)
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                ) : (
-                  <div className="space-y-3">
-                    <textarea
-                      placeholder="자유롭게 답안을 서술하세요..."
-                      value={essayInputs[q.id] || ''}
-                      onChange={(e) => setEssayInputs(prev => ({ ...prev, [q.id]: e.target.value }))}
-                      rows={4}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-none"
-                    />
-                    <button 
-                      className="btn-premium px-6 py-3 rounded-xl text-sm font-bold whitespace-nowrap disabled:opacity-50 w-full"
-                      onClick={() => handleEssaySubmit(q.id)}
-                      disabled={isFinalized || !essayInputs[q.id]?.trim()}
-                    >
-                      답안 제출
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
+            {/* Footer: context + explanation */}
             <div className="mt-auto pt-6 border-t border-slate-800 space-y-4">
               <div className="flex flex-wrap gap-4 items-center">
                 {(!showContextTiming || showContextTiming === 'always' || isFinished) && (
-                  <button 
-                    onClick={() => onShowContext(q.sourceContext)}
-                    className="flex items-center gap-2 text-sm text-amber-400 hover:text-amber-300 transition-colors"
-                  >
+                  <button onClick={() => onShowContext(q.sourceContext)}
+                    className="flex items-center gap-2 text-sm text-amber-400 hover:text-amber-300 transition-colors">
                     <BookOpen size={16} />
                     <span>원문 근거 확인</span>
                   </button>
                 )}
-                {answered && (
-                  <button 
-                    onClick={() => toggleExplanation(q.id)}
-                    className="flex items-center gap-2 text-sm text-sky-400 hover:text-sky-300 transition-colors ml-auto"
-                  >
+                {answered && resultVisible && (
+                  <button onClick={() => toggleExplanation(q.id)}
+                    className="flex items-center gap-2 text-sm text-sky-400 hover:text-sky-300 transition-colors ml-auto">
                     <Info size={16} />
                     <span>{showExplanation[q.id] ? '해설 닫기' : 'AI 해설 보기'}</span>
                     {showExplanation[q.id] ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -474,13 +494,9 @@ export default function QuizView({
               </div>
               
               <AnimatePresence>
-                {answered && showExplanation[q.id] && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden"
-                  >
+                {answered && resultVisible && showExplanation[q.id] && (
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
                     <div className="p-4 mt-4 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
                       {q.explanation}
                     </div>
@@ -492,6 +508,20 @@ export default function QuizView({
         );
       })}
 
+      {/* "Reveal All" button for after_all mode */}
+      {isAfterAll && allAnswered && !allRevealed && (
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          className="glass p-8 rounded-3xl text-center space-y-4 border-2 border-sky-500/50">
+          <h3 className="text-xl font-bold">모든 문제를 풀었습니다!</h3>
+          <p className="text-slate-400 text-sm">아래 버튼을 눌러 정답을 확인하세요.</p>
+          <button onClick={handleRevealAll}
+            className="btn-premium px-10 py-4 rounded-2xl font-bold text-lg hover:scale-105 transition-transform">
+            📊 정답 확인하기
+          </button>
+        </motion.div>
+      )}
+
+      {/* Completion */}
       <AnimatePresence>
         {isFinished && (
           <motion.div

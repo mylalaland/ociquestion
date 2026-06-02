@@ -57,6 +57,38 @@ function Confetti() {
   );
 }
 
+// Fireworks for perfect score
+function Fireworks() {
+  const particles = useMemo(() => Array.from({ length: 30 }, (_, i) => ({
+    id: i,
+    x: 50 + (Math.random() - 0.5) * 60,
+    y: 30 + (Math.random() - 0.5) * 40,
+    color: ['#fcd34d', '#f472b6', '#38bdf8', '#34d399', '#a78bfa', '#fb923c'][i % 6],
+    delay: `${Math.random() * 2}s`,
+    size: `${4 + Math.random() * 6}px`,
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  })), []);
+
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+      {particles.map(p => (
+        <div
+          key={p.id}
+          className="firework-particle"
+          style={{
+            left: `${p.x}%`,
+            top: `${p.y}%`,
+            backgroundColor: p.color,
+            width: p.size,
+            height: p.size,
+            animationDelay: p.delay,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 // SVG circular progress
 function ScoreCircle({ percent, color }: { percent: number; color: string }) {
   const circumference = 2 * Math.PI * 50;
@@ -131,6 +163,7 @@ export default function QuizResultScreen({
       SHORT_ANSWER: '단답형',
       ESSAY: '서술형',
       CSAT: '수능형',
+      TRUE_FALSE: 'O/X',
     };
     questions.forEach(q => {
       if (!stats[q.type]) stats[q.type] = { total: 0, correct: 0, points: 0 };
@@ -165,7 +198,8 @@ export default function QuizResultScreen({
     questions.forEach((q, i) => {
       const mark = correctMap[q.id] ? '✅' : '❌';
       const half = halfPointMap[q.id] ? '(2차)' : '';
-      text += `Q${i + 1}. ${q.type === 'MULTIPLE_CHOICE' ? '객관식' : q.type === 'SHORT_ANSWER' ? '단답형' : q.type === 'ESSAY' ? '서술형' : '수능형'} ${mark}${half} `;
+      const typeLabel = q.type === 'MULTIPLE_CHOICE' ? '객관식' : q.type === 'SHORT_ANSWER' ? '단답형' : q.type === 'ESSAY' ? '서술형' : q.type === 'TRUE_FALSE' ? 'O/X' : '수능형';
+      text += `Q${i + 1}. ${typeLabel} ${mark}${half} `;
     });
     text += `\n━━━━━━━━━━━━━━━━━━\n`;
     text += `누적 포인트: ${totalPointsBefore + earnedPoints}P\n`;
@@ -250,9 +284,10 @@ export default function QuizResultScreen({
     }
   };
 
-  const gradeEmoji = percent >= 90 ? '🏅' : percent >= 70 ? '🎉' : percent >= 50 ? '💪' : '📚';
-  const gradeMessage = percent >= 90 ? '완벽에 가까워요! 최고!' : percent >= 70 ? '잘했어요! 훌륭합니다!' : percent >= 50 ? '좋은 시작이에요! 조금만 더!' : '다시 도전해봐요! 화이팅!';
-  const circleColor = passed ? '#34d399' : percent >= 50 ? '#fbbf24' : '#f87171';
+  const isPerfect = percent === 100;
+  const gradeEmoji = isPerfect ? '🌟' : percent >= 90 ? '🏅' : percent >= 70 ? '🎉' : percent >= 50 ? '💪' : '📚';
+  const gradeMessage = isPerfect ? '만점이에요! 최고의 천재!' : percent >= 90 ? '완벽에 가까워요! 최고!' : percent >= 70 ? '잘했어요! 훌륭합니다!' : percent >= 50 ? '좋은 시작이에요! 조금만 더!' : '다시 도전해봐요! 화이팅!';
+  const circleColor = passed ? (isPerfect ? '#fbbf24' : '#34d399') : percent >= 50 ? '#fbbf24' : '#f87171';
 
   return (
     <motion.div
@@ -261,6 +296,7 @@ export default function QuizResultScreen({
       className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 overflow-y-auto"
     >
       {passed && <Confetti />}
+      {isPerfect && <Fireworks />}
 
       <motion.div
         ref={resultRef}
@@ -283,7 +319,7 @@ export default function QuizResultScreen({
             >
               {gradeEmoji}
             </motion.div>
-            <h2 className="text-2xl font-black text-white">{passed ? '축하합니다!' : '수고하셨습니다!'}</h2>
+            <h2 className="text-2xl font-black text-white">{isPerfect ? '🎆 만점 축하! 🎆' : passed ? '축하합니다!' : '수고하셨습니다!'}</h2>
             <p className="text-slate-400">{gradeMessage}</p>
             <div className="flex items-center justify-center gap-2 flex-wrap mt-2">
               <span className="px-3 py-1 bg-slate-800 rounded-full text-xs font-bold text-sky-400">{subject || '과목 미지정'}</span>

@@ -14,8 +14,9 @@ const QUIZ_SCHEMA: ResponseSchema = {
         type: SchemaType.OBJECT,
         properties: {
           id: { type: SchemaType.STRING },
-          type: { type: SchemaType.STRING, enum: ["CSAT", "MULTIPLE_CHOICE", "SHORT_ANSWER", "ESSAY"] } as ResponseSchema,
+          type: { type: SchemaType.STRING, enum: ["CSAT", "MULTIPLE_CHOICE", "SHORT_ANSWER", "ESSAY", "TRUE_FALSE"] } as ResponseSchema,
           question: { type: SchemaType.STRING },
+          passage: { type: SchemaType.STRING, description: "For CSAT type: the reading passage that students must read before answering. REQUIRED for CSAT type." },
           options: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
           correctAnswer: { type: SchemaType.STRING },
           explanation: { type: SchemaType.STRING },
@@ -90,7 +91,14 @@ export class GeminiProvider {
     throw lastError;
   }
 
-  async generateQuiz(text: string, types: string[], files?: File[], numQuestions: number = 5, difficulty: string = "보통"): Promise<QuizResult> {
+  async generateQuiz(
+    text: string, 
+    types: string[], 
+    files?: File[], 
+    numQuestions: number = 5, 
+    difficulty: string = "보통",
+    multipleChoiceCount: number = 5
+  ): Promise<QuizResult> {
     return this.withRetry(async () => {
       const model = this.genAI.getGenerativeModel({
         model: this.modelId,
@@ -106,13 +114,39 @@ export class GeminiProvider {
         The overall difficulty of the questions should be: [${difficulty}].
         The quiz should include the following types as evenly distributed as possible: ${types.join(", ")}.
         
-        For "CSAT" (수능형), create a complex logical reasoning question typical of academic entrance exams. For CSAT questions, if they have options, the correctAnswer MUST exactly match one of the string items in the options array.
-        For "MULTIPLE_CHOICE" (객관식), create 5-option multiple choice questions. The correctAnswer MUST exactly match one of the string items in the options array (not the number or a prefix, but the exact string itself).
-        For "SHORT_ANSWER" (단답형), create questions where the answer is a specific word or short phrase (1~3 words max).
-        For "ESSAY" (서술형), create questions that require a longer, explanatory answer (1~3 sentences). The correctAnswer should be a model answer.
+        ===== CRITICAL RULES (MUST FOLLOW) =====
         
-        For each question, accurately quote the 'sourceContext' (the exact sentence or paragraph from the text that provides the answer).
-        All content should be in Korean as the target users are Korean students.
+        1. For "MULTIPLE_CHOICE" (객관식):
+           - Create ${multipleChoiceCount}-option multiple choice questions.
+           - The "correctAnswer" field MUST be the EXACT same string as one of the items in the "options" array. Not a number, not a prefix—the exact option text.
+           - There MUST be exactly ONE correct answer among the options. Never create questions where all options are correct or no option is correct.
+           - Each option must be clearly distinct and different.
+        
+        2. For "CSAT" (수능형):
+           - You MUST include a "passage" field containing a reading passage (지문) that students read before answering. 
+           - The passage must be substantial (at least 3-4 sentences) and directly relevant to the question.
+           - NEVER create a CSAT question without a passage. A CSAT question without a passage is INVALID.
+           - If the question has options, the correctAnswer MUST exactly match one of the option strings.
+        
+        3. For "TRUE_FALSE" (O/X):
+           - Create statements that are either true or false.
+           - The correctAnswer MUST be exactly "O" (true) or "X" (false).
+           - Do NOT include options array for TRUE_FALSE questions.
+        
+        4. For "SHORT_ANSWER" (단답형):
+           - Create questions where the answer is a specific word or short phrase (1~3 words max).
+        
+        5. For "ESSAY" (서술형):
+           - Create questions that require a longer, explanatory answer (1~3 sentences).
+           - The correctAnswer should be a model answer.
+        
+        6. For EVERY question:
+           - "sourceContext" must accurately quote the exact sentence or paragraph from the text that provides/supports the answer.
+           - "explanation" must explain WHY the answer is correct with clear reasoning.
+           - All content must be in Korean as the target users are Korean students.
+           - Each question "id" must be unique (use q1, q2, q3...).
+        
+        ===== END RULES =====
 
         Text provided (extracted from PDF or manually):
         ${text.slice(0, 30000)}
@@ -131,7 +165,48 @@ export class GeminiProvider {
 
       const result = await model.generateContent(parts);
       const response = await result.response;
-      return JSON.parse(response.text()) as QuizResult;
+      const parsed = JSON.parse(response.text()) as QuizResult;
+      
+      // Post-process: validate and fix common issues
+      parsed.questions = parsed.questions.map(q => {
+        // Fix MULTIPLE_CHOICE: ensure correctAnswer matches an option
+        if ((q.type === 'MULTIPLE_CHOICE' || q.type === 'CSAT') && q.options && q.options.length > 0) {
+          const exactMatch = q.options.find(opt => opt === q.correctAnswer);
+          if (!exactMatch) {
+            // Try to find by normalized comparison
+            const normalize = (s: string) => s.replace(/^(\d+[\.\s]|\d+번\s*|[\(\[\{]\d+[\)\]\}]\s*|[①②③④⑤]\s*)/, '').replace(/[\s\p{P}]/gu, '');
+            const normCorrect = normalize(q.correctAnswer);
+            const matchIdx = q.options.findIndex(opt => normalize(opt) === normCorrect || normalize(opt).includes(normCorrect) || normCorrect.includes(normalize(opt)));
+            if (matchIdx >= 0) {
+              q.correctAnswer = q.options[matchIdx];
+            } else {
+              // Try number-based matching
+              const numMatch = q.correctAnswer.match(/(\d+)/);
+              if (numMatch) {
+                const idx = parseInt(numMatch[1], 10) - 1;
+                if (idx >= 0 && idx < q.options.length) {
+                  q.correctAnswer = q.options[idx];
+                }
+              }
+            }
+          }
+        }
+        
+        // Fix TRUE_FALSE: normalize answer
+        if (q.type === 'TRUE_FALSE') {
+          const ans = q.correctAnswer.trim().toUpperCase();
+          if (ans.includes('O') || ans.includes('TRUE') || ans.includes('맞') || ans.includes('참')) {
+            q.correctAnswer = 'O';
+          } else {
+            q.correctAnswer = 'X';
+          }
+          q.options = undefined; // Remove any options
+        }
+        
+        return q;
+      });
+      
+      return parsed;
     });
   }
 

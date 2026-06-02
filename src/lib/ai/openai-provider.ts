@@ -60,38 +60,37 @@ export class OpenAIProvider {
     }
   }
 
-  async generateQuiz(text: string, types: string[], numQuestions: number = 5, difficulty: string = "보통"): Promise<QuizResult> {
+  async generateQuiz(text: string, types: string[], numQuestions: number = 5, difficulty: string = "보통", multipleChoiceCount: number = 5): Promise<QuizResult> {
     const prompt = `
       Analyze the provided content and generate a quiz with EXACTLY ${numQuestions} questions.
       The overall difficulty of the questions should be: [${difficulty}].
       The quiz should include the following types as evenly distributed as possible: ${types.join(", ")}.
       
-      For "CSAT" (수능형), create a complex logical reasoning question typical of academic entrance exams. For CSAT questions, if they have options, the correctAnswer MUST exactly match one of the string items in the options array.
-      For "MULTIPLE_CHOICE" (객관식), create 5-option multiple choice questions. The correctAnswer MUST exactly match one of the string items in the options array (not the number or a prefix, but the exact string itself).
-      For "SHORT_ANSWER" (단답형), create questions where the answer is a specific word or short phrase (1~3 words max).
-      For "ESSAY" (서술형), create questions that require a longer, explanatory answer (1~3 sentences). The correctAnswer should be a model answer.
+      ===== CRITICAL RULES (MUST FOLLOW) =====
       
-      For each question, accurately quote the 'sourceContext' (the exact sentence or paragraph from the text that provides the answer).
-      All content should be in Korean as the target users are Korean students.
+      1. For "MULTIPLE_CHOICE" (객관식):
+         - Create ${multipleChoiceCount}-option multiple choice questions.
+         - The "correctAnswer" field MUST be the EXACT same string as one of the items in the "options" array.
+         - There MUST be exactly ONE correct answer. Never create questions where all options are correct or no option is correct.
+      
+      2. For "CSAT" (수능형):
+         - You MUST include a "passage" field with a substantial reading passage (at least 3-4 sentences).
+         - NEVER create a CSAT question without a passage.
+         - If the question has options, the correctAnswer MUST exactly match one of the option strings.
+      
+      3. For "TRUE_FALSE" (O/X):
+         - Create statements that are either true or false.
+         - The correctAnswer MUST be exactly "O" (true) or "X" (false). Do NOT include options.
+      
+      4. For "SHORT_ANSWER" (단답형): answer is 1~3 words max.
+      5. For "ESSAY" (서술형): longer explanatory answer (1~3 sentences).
+      
+      For EVERY question: sourceContext must quote the exact text, explanation must explain WHY. All in Korean.
+      ===== END RULES =====
 
-      You must return your output strictly in JSON format matching this JSON schema:
-      {
-        "title": "string (Title of the quiz)",
-        "summary": "string (Short summary of the document)",
-        "questions": [
-          {
-            "id": "string (unique string id, e.g. 'q1', 'q2')",
-            "type": "string (CSAT | MULTIPLE_CHOICE | SHORT_ANSWER | ESSAY)",
-            "question": "string",
-            "options": ["string"] (array of strings, strictly required for CSAT/MULTIPLE_CHOICE, otherwise omitted or empty),
-            "correctAnswer": "string",
-            "explanation": "string",
-            "sourceContext": "string"
-          }
-        ]
-      }
+      Return JSON: { "title": "string", "summary": "string", "questions": [{ "id": "string", "type": "CSAT|MULTIPLE_CHOICE|SHORT_ANSWER|ESSAY|TRUE_FALSE", "question": "string", "passage": "string (CSAT only)", "options": ["string"], "correctAnswer": "string", "explanation": "string", "sourceContext": "string" }] }
 
-      Text provided:
+      Text:
       ${text.slice(0, 15000)}
     `;
 
@@ -119,10 +118,32 @@ export class OpenAIProvider {
 
       const data = await response.json();
       const content = data.choices[0]?.message?.content;
-      return JSON.parse(content) as QuizResult;
+      const parsed = JSON.parse(content) as QuizResult;
+      
+      // Post-process validation
+      parsed.questions = parsed.questions.map(q => {
+        if ((q.type === 'MULTIPLE_CHOICE' || q.type === 'CSAT') && q.options && q.options.length > 0) {
+          if (!q.options.includes(q.correctAnswer)) {
+            const numMatch = q.correctAnswer.match(/(\d+)/);
+            if (numMatch) {
+              const idx = parseInt(numMatch[1], 10) - 1;
+              if (idx >= 0 && idx < q.options.length) q.correctAnswer = q.options[idx];
+            }
+          }
+        }
+        if (q.type === 'TRUE_FALSE') {
+          const ans = q.correctAnswer.trim().toUpperCase();
+          q.correctAnswer = (ans.includes('O') || ans.includes('TRUE') || ans.includes('맞')) ? 'O' : 'X';
+          q.options = undefined;
+        }
+        return q;
+      });
+      
+      return parsed;
     } catch (error: unknown) {
       console.error("OpenAI Generate Quiz Failed:", error);
       throw error;
     }
   }
 }
+

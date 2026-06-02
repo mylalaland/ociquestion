@@ -37,42 +37,22 @@ export class ClaudeProvider {
     }
   }
 
-  async generateQuiz(text: string, types: string[], numQuestions: number = 5, difficulty: string = "보통"): Promise<QuizResult> {
-    const systemPrompt = `You are a professional educational quiz generator. Output ONLY clean JSON matching this JSON schema:
-    {
-      "title": "string (Title of the quiz)",
-      "summary": "string (Short summary of the document)",
-      "questions": [
-        {
-          "id": "string (unique string id, e.g. 'q1', 'q2')",
-          "type": "string (CSAT | MULTIPLE_CHOICE | SHORT_ANSWER | ESSAY)",
-          "question": "string",
-          "options": ["string"] (array of strings, strictly required for CSAT/MULTIPLE_CHOICE, otherwise omitted or empty),
-          "correctAnswer": "string",
-          "explanation": "string",
-          "sourceContext": "string"
-        }
-      ]
-    }
-    `;
+  async generateQuiz(text: string, types: string[], numQuestions: number = 5, difficulty: string = "보통", multipleChoiceCount: number = 5): Promise<QuizResult> {
+    const systemPrompt = `You are a professional educational quiz generator. Output ONLY clean JSON matching this schema:
+    { "title": "string", "summary": "string", "questions": [{ "id": "string", "type": "CSAT|MULTIPLE_CHOICE|SHORT_ANSWER|ESSAY|TRUE_FALSE", "question": "string", "passage": "string (CSAT only)", "options": ["string"], "correctAnswer": "string", "explanation": "string", "sourceContext": "string" }] }`;
 
     const prompt = `
-      Analyze the provided content and generate a quiz with EXACTLY ${numQuestions} questions.
-      The overall difficulty of the questions should be: [${difficulty}].
-      The quiz should include the following types as evenly distributed as possible: ${types.join(", ")}.
+      Generate a quiz with EXACTLY ${numQuestions} questions. Difficulty: [${difficulty}].
+      Types: ${types.join(", ")}.
       
-      For "CSAT" (수능형), create a complex logical reasoning question typical of academic entrance exams. For CSAT questions, if they have options, the correctAnswer MUST exactly match one of the string items in the options array.
-      For "MULTIPLE_CHOICE" (객관식), create 5-option multiple choice questions. The correctAnswer MUST exactly match one of the string items in the options array (not the number or a prefix, but the exact string itself).
-      For "SHORT_ANSWER" (단답형), create questions where the answer is a specific word or short phrase (1~3 words max).
-      For "ESSAY" (서술형), create questions that require a longer, explanatory answer (1~3 sentences). The correctAnswer should be a model answer.
+      CRITICAL RULES:
+      1. MULTIPLE_CHOICE: ${multipleChoiceCount} options. correctAnswer MUST exactly match one option string. Exactly ONE correct answer.
+      2. CSAT: MUST include "passage" field (3+ sentences). correctAnswer must match one option.
+      3. TRUE_FALSE (O/X): correctAnswer must be "O" or "X". No options array.
+      4. SHORT_ANSWER: 1-3 word answer. 5. ESSAY: 1-3 sentence model answer.
+      All in Korean. sourceContext must quote exact source text. Raw JSON only.
       
-      For each question, accurately quote the 'sourceContext' (the exact sentence or paragraph from the text that provides the answer).
-      All content should be in Korean as the target users are Korean students.
-
-      Remember, output only raw JSON without markdown markers or backticks.
-
-      Text provided:
-      ${text.slice(0, 15000)}
+      Text: ${text.slice(0, 15000)}
     `;
 
     try {
@@ -88,9 +68,7 @@ export class ClaudeProvider {
           model: this.modelId,
           system: systemPrompt,
           max_tokens: 4000,
-          messages: [
-            { role: "user", content: prompt }
-          ]
+          messages: [{ role: "user", content: prompt }]
         })
       });
 
@@ -101,12 +79,33 @@ export class ClaudeProvider {
 
       const data = await response.json();
       const content = data.content[0]?.text || "";
-      // Strip markdown code block wrappers if Claude outputs them
       const cleaned = content.replace(/```json/g, "").replace(/```/g, "").trim();
-      return JSON.parse(cleaned) as QuizResult;
+      const parsed = JSON.parse(cleaned) as QuizResult;
+      
+      // Post-process
+      parsed.questions = parsed.questions.map(q => {
+        if ((q.type === 'MULTIPLE_CHOICE' || q.type === 'CSAT') && q.options && q.options.length > 0) {
+          if (!q.options.includes(q.correctAnswer)) {
+            const numMatch = q.correctAnswer.match(/(\d+)/);
+            if (numMatch) {
+              const idx = parseInt(numMatch[1], 10) - 1;
+              if (idx >= 0 && idx < q.options.length) q.correctAnswer = q.options[idx];
+            }
+          }
+        }
+        if (q.type === 'TRUE_FALSE') {
+          const ans = q.correctAnswer.trim().toUpperCase();
+          q.correctAnswer = (ans.includes('O') || ans.includes('TRUE') || ans.includes('맞')) ? 'O' : 'X';
+          q.options = undefined;
+        }
+        return q;
+      });
+      
+      return parsed;
     } catch (error: unknown) {
       console.error("Claude Generate Quiz Failed:", error);
       throw error;
     }
   }
 }
+

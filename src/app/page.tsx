@@ -7,12 +7,17 @@ import { GeminiProvider } from '@/lib/ai/gemini-provider';
 import { OpenAIProvider } from '@/lib/ai/openai-provider';
 import { ClaudeProvider } from '@/lib/ai/claude-provider';
 import { extractTextFromPdf } from '@/lib/pdf/pdf-processor';
-import { QuizResult, PointConfig, DEFAULT_POINT_CONFIG } from '@/lib/ai/types';
+import { QuizResult, PointConfig, DEFAULT_POINT_CONFIG, AdvancedPointSettings, DEFAULT_ADVANCED_POINT_SETTINGS, ThemeId } from '@/lib/ai/types';
 import QuizView from '@/components/quiz/QuizView';
 import QuizResultScreen from '@/components/quiz/QuizResultScreen';
 import FullTextHighlight from '@/components/viewer/FullTextHighlight';
 import CameraPreview from '@/components/shared/CameraPreview';
+import QuizHeader from '@/components/quiz/QuizHeader';
+import SettingsModal from '@/components/settings/SettingsModal';
+import BonusRoulette from '@/components/bonus/BonusRoulette';
+import BonusCardPick from '@/components/bonus/BonusCardPick';
 import { saveQuizHistory, getAllQuizHistory, QuizHistory, PointLog, savePointLog, getPointLogs } from '@/lib/storage/history-store';
+import { ensureDefaultUser, getActiveUserId, setActiveUserId, userKey } from '@/lib/storage/user-store';
 
 // ========== Utility: SHA-256 hash ==========
 async function sha256(message: string): Promise<string> {
@@ -52,7 +57,7 @@ export default function Home() {
   const [apiKeyGemini, setApiKeyGemini] = useState('');
   const [apiKeyOpenai, setApiKeyOpenai] = useState('');
   const [apiKeyClaude, setApiKeyClaude] = useState('');
-  const [modelGemini, setModelGemini] = useState('gemini-flash-latest');
+  const [modelGemini, setModelGemini] = useState('gemini-2.5-flash');
   const [modelOpenai, setModelOpenai] = useState('gpt-4o-mini');
   const [modelClaude, setModelClaude] = useState('claude-3-5-sonnet-latest');
   const [discoveredGemini, setDiscoveredGemini] = useState<string[]>([]);
@@ -74,7 +79,7 @@ export default function Home() {
   }, [activeProvider, apiKeyGemini, apiKeyOpenai, apiKeyClaude, modelGemini, modelOpenai, modelClaude]);
 
   const [numQuestions, setNumQuestions] = useState(5);
-  const [selectedTypes, setSelectedTypes] = useState<string[]>(['CSAT', 'MULTIPLE_CHOICE', 'SHORT_ANSWER', 'ESSAY']);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(['CSAT', 'MULTIPLE_CHOICE', 'SHORT_ANSWER', 'ESSAY', 'TRUE_FALSE']);
   const [difficulty, setDifficulty] = useState('보통');
   const [retryMultipleChoice, setRetryMultipleChoice] = useState(true);
   const [quizFontSize, setQuizFontSize] = useState('medium');
@@ -88,6 +93,7 @@ export default function Home() {
   const [totalPoints, setTotalPoints] = useState(0);
   const [pointLogs, setPointLogs] = useState<PointLog[]>([]);
   const [showPointAnalysis, setShowPointAnalysis] = useState(false);
+  const [advancedPoints, setAdvancedPoints] = useState<AdvancedPointSettings>(DEFAULT_ADVANCED_POINT_SETTINGS);
   
   // ─── Guardian Locks & Target Goals ───
   const [lockRetry, setLockRetry] = useState(false);
@@ -95,7 +101,16 @@ export default function Home() {
   const [lockContextTiming, setLockContextTiming] = useState(false);
   const [targetPoints, setTargetPoints] = useState(1000);
   const [pointModalTab, setPointModalTab] = useState<'goal' | 'chart' | 'logs'>('goal');
-  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
+  const [theme, setTheme] = useState<ThemeId>('dark');
+  
+  // ─── Multi-User ───
+  const [activeUser, setActiveUser] = useState('default');
+  
+  // ─── Bonus ───
+  const [showBonusRoulette, setShowBonusRoulette] = useState(false);
+  const [showBonusCard, setShowBonusCard] = useState(false);
+  const [parentPin, setParentPin] = useState('');
+  const [parentLockEnabled, setParentLockEnabled] = useState(false);
   
   // ─── Password Protection ───
   const [parentPasswordHash, setParentPasswordHash] = useState<string | null>(null);
@@ -126,7 +141,7 @@ export default function Home() {
   const [correctQuestions, setCorrectQuestions] = useState<Set<string>>(new Set());
   const [mobileTab, setMobileTab] = useState<'quiz' | 'context'>('quiz');
   const [showSettings, setShowSettings] = useState(false);
-  const [uploadMode, setUploadMode] = useState<'file' | 'camera'>('file');
+  const [uploadMode, setUploadMode] = useState<'file' | 'camera'>('camera');
   const [showCamera, setShowCamera] = useState(false);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [showHistory, setShowHistory] = useState(false);
@@ -162,7 +177,7 @@ export default function Home() {
     if (savedKeyOpenai) setApiKeyOpenai(savedKeyOpenai);
     if (savedKeyClaude) setApiKeyClaude(savedKeyClaude);
 
-    const savedModelGemini = localStorage.getItem('OCI_QUIZ_MODEL_GEMINI') || savedModel || 'gemini-1.5-flash';
+    const savedModelGemini = localStorage.getItem('OCI_QUIZ_MODEL_GEMINI') || savedModel || 'gemini-2.5-flash';
     const savedModelOpenai = localStorage.getItem('OCI_QUIZ_MODEL_OPENAI') || 'gpt-4o-mini';
     const savedModelClaude = localStorage.getItem('OCI_QUIZ_MODEL_CLAUDE') || 'claude-3-5-sonnet-latest';
     if (savedModelGemini) setModelGemini(savedModelGemini);
@@ -222,7 +237,19 @@ export default function Home() {
     if (savedTargetPoints) setTargetPoints(parseInt(savedTargetPoints));
 
     const savedTheme = localStorage.getItem('OCI_QUIZ_THEME');
-    if (savedTheme) setTheme(savedTheme as 'light' | 'dark' | 'system');
+    if (savedTheme) setTheme(savedTheme as ThemeId);
+    
+    const savedAdvancedPoints = localStorage.getItem('OCI_QUIZ_ADVANCED_POINTS');
+    if (savedAdvancedPoints) setAdvancedPoints(JSON.parse(savedAdvancedPoints));
+    
+    const savedParentPin = localStorage.getItem('OCI_QUIZ_PARENT_PIN');
+    if (savedParentPin) setParentPin(savedParentPin);
+    const savedParentLock = localStorage.getItem('OCI_QUIZ_PARENT_LOCK');
+    if (savedParentLock) setParentLockEnabled(savedParentLock === 'true');
+    
+    // Initialize multi-user
+    ensureDefaultUser();
+    setActiveUser(getActiveUserId());
 
     setPointLogs(getPointLogs());
   }, []);
@@ -277,44 +304,21 @@ export default function Home() {
 
   useEffect(() => {
     localStorage.setItem('OCI_QUIZ_THEME', theme);
-    const applyTheme = (t: 'light' | 'dark' | 'system') => {
-      const root = document.documentElement;
-      if (t === 'light') {
-        root.classList.add('light');
-        root.classList.remove('dark');
-      } else if (t === 'dark') {
-        root.classList.add('dark');
-        root.classList.remove('light');
-      } else {
-        const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        if (systemDark) {
-          root.classList.add('dark');
-          root.classList.remove('light');
-        } else {
-          root.classList.add('light');
-          root.classList.remove('dark');
-        }
-      }
-    };
-    
-    applyTheme(theme);
-    
-    if (theme === 'system') {
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-      const handler = (e: MediaQueryListEvent) => {
-        const root = document.documentElement;
-        if (e.matches) {
-          root.classList.add('dark');
-          root.classList.remove('light');
-        } else {
-          root.classList.add('light');
-          root.classList.remove('dark');
-        }
-      };
-      mediaQuery.addEventListener('change', handler);
-      return () => mediaQuery.removeEventListener('change', handler);
+    const root = document.documentElement;
+    root.classList.remove('light', 'dark', 'yellow', 'cat');
+    if (theme !== 'dark') {
+      root.classList.add(theme);
     }
   }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem('OCI_QUIZ_ADVANCED_POINTS', JSON.stringify(advancedPoints));
+  }, [advancedPoints]);
+
+  useEffect(() => {
+    localStorage.setItem('OCI_QUIZ_PARENT_PIN', parentPin);
+    localStorage.setItem('OCI_QUIZ_PARENT_LOCK', parentLockEnabled.toString());
+  }, [parentPin, parentLockEnabled]);
 
   // ═══════════════════════════════════════
   // Handlers
@@ -476,15 +480,16 @@ export default function Home() {
       setFullText(combinedText);
       
       let result;
+      const mcCount = advancedPoints.multipleChoiceCount;
       if (activeProvider === 'openai') {
         const provider = new OpenAIProvider(apiKey, selectedModel);
-        result = await provider.generateQuiz(combinedText, selectedTypes, numQuestions, difficulty);
+        result = await provider.generateQuiz(combinedText, selectedTypes, numQuestions, difficulty, mcCount);
       } else if (activeProvider === 'claude') {
         const provider = new ClaudeProvider(apiKey, selectedModel);
-        result = await provider.generateQuiz(combinedText, selectedTypes, numQuestions, difficulty);
+        result = await provider.generateQuiz(combinedText, selectedTypes, numQuestions, difficulty, mcCount);
       } else {
         const provider = new GeminiProvider(apiKey, selectedModel);
-        result = await provider.generateQuiz(combinedText, selectedTypes, imageFiles, numQuestions, difficulty);
+        result = await provider.generateQuiz(combinedText, selectedTypes, imageFiles, numQuestions, difficulty, mcCount);
       }
       
       if (result.extractedText) {
@@ -523,13 +528,13 @@ export default function Home() {
       const errStr = String(err.message || error).toLowerCase();
       
       if (errStr.includes("503") || err.status === 503) {
-        alert("현재 Google 서버에 요청이 몰려 응답이 지연되고 있습니다. (Error 503)\n잠시 후 다시 시도하시거나, 다른 모델(예: 1.5 Flash)로 변경해 보세요.");
+        alert("현재 Google 서버에 요청이 몰려 응답이 지연되고 있습니다. (Error 503)\n잠시 후 다시 시도하시거나, 다른 모델(예: 2.5 Flash)로 변경해 보세요.\n\n💡 설정 → 관리자 → '연결 테스트' 버튼으로 연결 상태를 확인해 보세요.");
       } else if (errStr.includes("quota") || errStr.includes("429") || errStr.includes("exhausted") || err.status === 429) {
         alert("🚨 API 크레딧 또는 할당량을 모두 소진했습니다!\nGoogle AI Studio에서 잔여 한도를 확인하시거나 과금이 필요할 수 있습니다.");
       } else if (errStr.includes("api key") || errStr.includes("400") || errStr.includes("invalid") || err.status === 400) {
-        alert("🚨 API 키가 유효하지 않습니다.\n설정에서 정확한 Gemini API 키를 다시 한 번 붙여넣어 주세요.");
+        alert("🚨 API 키가 유효하지 않습니다.\n설정에서 정확한 API 키를 다시 한 번 붙여넣어 주세요.\n\n💡 설정 → 관리자 → '연결 테스트' 버튼으로 API 키를 확인해 보세요.");
       } else {
-        alert(`문제 생성 중 알 수 없는 오류가 발생했습니다.\n\n상세내용: ${err.message || String(error)}\n네트워크나 설정을 확인해 주세요.`);
+        alert(`문제 생성 중 알 수 없는 오류가 발생했습니다.\n\n상세내용: ${err.message || String(error)}\n\n💡 설정 → 관리자에서 '연결 테스트'를 해보세요.`);
       }
     } finally {
       setIsProcessing(false);
@@ -651,19 +656,19 @@ export default function Home() {
     const history = await getHistoryById(currentQuizId);
     if (!history || !quizResult) return;
     
-    // Calculate earned points per type
-    let earned = 0;
-    const requiredScore = Math.ceil((passThreshold / 100) * history.totalQuestions);
-    const passed = score >= requiredScore;
+    // Calculate earned points with advanced settings
+    const { calculatePoints } = await import('@/lib/points/point-calculator');
+    const pointResult = calculatePoints(
+      quizResult.questions,
+      correctQuestions,
+      halfPointQuestions,
+      passThreshold,
+      pointConfig,
+      difficulty,
+      advancedPoints
+    );
     
-    if (passed) {
-      quizResult.questions.forEach(q => {
-        if (correctQuestions.has(q.id)) {
-          const base = pointConfig[q.type as keyof PointConfig] || 10;
-          earned += halfPointQuestions.has(q.id) ? Math.floor(base * 0.5) : base;
-        }
-      });
-    }
+    const earned = pointResult.totalEarned - pointResult.bonusPoints; // Base earned without bonus
     
     history.score = score;
     history.correctAnswers = score;
@@ -694,6 +699,17 @@ export default function Home() {
     setEarnedPoints(earned);
     setIsQuizFinalized(true);
     setShowResultScreen(true);
+    
+    // Check for bonus opportunity
+    if (pointResult.bonusTriggered) {
+      setTimeout(() => {
+        if (advancedPoints.bonusMode === 'roulette') {
+          setShowBonusRoulette(true);
+        } else {
+          setShowBonusCard(true);
+        }
+      }, 1500);
+    }
   };
 
   // ─── Password handlers ───
@@ -882,64 +898,20 @@ export default function Home() {
   // ═══════════════════════════════════════
   if (step === 3 && quizResult) {
     return (
-      <main className="min-h-screen bg-slate-950">
-        {/* Top Nav Bar */}
-        <nav className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/50">
-          <div className="max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <button onClick={goHome} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors p-2 rounded-xl hover:bg-white/5">
-                <HomeIcon size={20} />
-                <span className="hidden md:inline text-sm font-bold">첫 화면</span>
-              </button>
-              <div className="h-5 w-px bg-slate-800" />
-              <div className="flex items-center gap-2">
-                <BrainCircuit size={16} className="text-sky-400" />
-                <span className="text-sm font-bold shimmer-text">Lala Quiz</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={() => {
-                  setShowPointAnalysis(true);
-                  setShowHistory(false);
-                  setShowSettings(false);
-                }}
-                className="glass px-3 py-1.5 rounded-xl flex items-center gap-2 hover:bg-white/10 active:scale-95 transition-all text-left focus:outline-none"
-              >
-                <span className="text-lg">🏆</span>
-                <span className="text-sky-400 font-bold text-sm">{totalPoints} P</span>
-              </button>
-            </div>
-          </div>
-        </nav>
+      <main className="min-h-screen bg-slate-950 overflow-x-hidden">
+        {/* Collapsible Quiz Header */}
+        <QuizHeader
+          title={quizResult.title}
+          summary={quizResult.summary}
+          subject={subject}
+          totalPoints={totalPoints}
+          onGoHome={goHome}
+          onExportPdf={handleExportPdf}
+          onExportTxt={handleExportTxt}
+          onPointClick={() => { setShowPointAnalysis(true); }}
+        />
 
         <div className="max-w-[1600px] mx-auto p-4 md:p-8 space-y-6">
-          <header className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                 <span className="px-2 py-1 bg-slate-800 rounded-md text-xs font-bold text-sky-400">{subject}</span>
-                 <h2 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-indigo-400 leading-tight">
-                   {quizResult.title}
-                 </h2>
-              </div>
-              <p className="text-slate-400 mt-1 text-sm">{quizResult.summary}</p>
-            </div>
-            <div className="flex flex-wrap gap-2 w-full md:w-auto">
-              <button 
-                onClick={handleExportPdf}
-                className="flex-1 md:flex-none justify-center btn-premium px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2"
-              >
-                <Download size={16} /> PDF
-              </button>
-              <button 
-                onClick={handleExportTxt}
-                className="flex-1 md:flex-none justify-center bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors"
-              >
-                <Download size={16} /> TXT
-              </button>
-            </div>
-          </header>
-
           {/* Mobile Tabs */}
           <div className="flex lg:hidden bg-slate-900 rounded-xl p-1 border border-slate-800">
             <button 
@@ -977,6 +949,7 @@ export default function Home() {
                   difficulty={difficulty}
                   isFinalized={isQuizFinalized}
                   onFinalize={handleFinalize}
+                  answerRevealTiming={advancedPoints.answerRevealTiming}
                 />
               </div>
             </div>
@@ -1539,639 +1512,68 @@ export default function Home() {
         )}
 
         {/* Settings Modal */}
-        {showSettings && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-          >
-            <div className="bg-slate-900/90 backdrop-blur-2xl p-6 md:p-8 rounded-[32px] border border-slate-700 w-full max-w-md shadow-2xl relative">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold flex items-center gap-2">
-                  <Settings className="text-sky-400" /> 설정
-                </h2>
-                <button onClick={() => { setShowSettings(false); setIsAdminUnlocked(false); }} className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400">
-                  <X size={24} />
-                </button>
-              </div>
-
-              {/* Settings Tab Selector */}
-              <div className="flex bg-slate-800/50 p-1 rounded-xl mb-6 border border-slate-700/50">
-                <button 
-                  onClick={() => setSettingsTab('general')}
-                  className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${settingsTab === 'general' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
-                >
-                  <Settings size={14} /> 일반
-                </button>
-                <button 
-                  onClick={handleAdminAccess}
-                  className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${settingsTab === 'admin' ? 'bg-sky-500 text-white' : 'text-slate-400 hover:text-white'}`}
-                >
-                  <Lock size={14} /> 관리자 (보호자)
-                </button>
-              </div>
-
-              <div className="space-y-6 overflow-y-auto custom-scrollbar pr-2" style={{ maxHeight: 'calc(80vh - 180px)' }}>
-                
-                {/* ─── General Settings Tab ─── */}
-                {settingsTab === 'general' && (
-                  <>
-                    <div className="flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <span className="text-sm text-slate-300 flex items-center gap-1.5 font-semibold">
-                          객관식 재도전 기회 {lockRetry && <Lock size={12} className="text-amber-400 shrink-0" />}
-                        </span>
-                        <span className="text-xs text-slate-500 mt-0.5">
-                          {lockRetry ? "🔒 보호자 설정에 의해 변경이 금지되었습니다." : "오답 시 한 번 더 풀 수 있음 (포인트 50%)"}
-                        </span>
-                      </div>
-                      <button 
-                        onClick={() => { if (!lockRetry) setRetryMultipleChoice(!retryMultipleChoice); }}
-                        disabled={lockRetry}
-                        className={`w-12 h-6 rounded-full transition-colors relative ${retryMultipleChoice ? 'bg-sky-500' : 'bg-slate-700'} ${lockRetry ? 'opacity-40 cursor-not-allowed' : 'hover:bg-opacity-80'}`}
-                      >
-                        <motion.div 
-                          animate={{ x: retryMultipleChoice ? 24 : 2 }}
-                          className="w-5 h-5 bg-white rounded-full absolute top-[2px]"
-                        />
-                      </button>
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <span className="text-sm text-slate-300 flex items-center gap-1.5 font-semibold">
-                          문제 글자 크기 {lockFontSize && <Lock size={12} className="text-amber-400 shrink-0" />}
-                        </span>
-                        {lockFontSize && <span className="text-[10px] text-slate-500 mt-0.5">🔒 보호자 설정에 의해 고정됨</span>}
-                      </div>
-                      <select 
-                        value={quizFontSize}
-                        disabled={lockFontSize}
-                        onChange={(e) => setQuizFontSize(e.target.value)}
-                        className="bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm focus:outline-none text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        <option value="small">작게</option>
-                        <option value="medium">보통</option>
-                        <option value="large">크게</option>
-                      </select>
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <span className="text-sm text-slate-300 flex items-center gap-1.5 font-semibold">
-                          원문 근거 노출 방식 {lockContextTiming && <Lock size={12} className="text-amber-400 shrink-0" />}
-                        </span>
-                        {lockContextTiming && <span className="text-[10px] text-slate-500 mt-0.5">🔒 보호자 설정에 의해 고정됨</span>}
-                      </div>
-                      <select 
-                        value={showContextTiming}
-                        disabled={lockContextTiming}
-                        onChange={(e) => setShowContextTiming(e.target.value as 'always' | 'after_quiz')}
-                        className="bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm focus:outline-none text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        <option value="always">항상 보기</option>
-                        <option value="after_quiz">다 풀고 나서 보기</option>
-                      </select>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <span className="text-sm text-slate-300 font-semibold">
-                          화면 스킨 테마
-                        </span>
-                        <span className="text-xs text-slate-500 mt-0.5">
-                          어플리케이션 색상 테마 설정
-                        </span>
-                      </div>
-                      <select 
-                        value={theme}
-                        onChange={(e) => setTheme(e.target.value as 'light' | 'dark' | 'system')}
-                        className="bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm focus:outline-none text-slate-300"
-                      >
-                        <option value="system">🌓 시스템 설정</option>
-                        <option value="light">☀️ 밝은 톤</option>
-                        <option value="dark">🌙 어두운 톤</option>
-                      </select>
-                    </div>
-
-                    <div className="pt-4 border-t border-slate-800">
-                      <p className="text-xs text-slate-500 text-center">
-                        🔒 API 키, 포인트, 통과 기준은 <button onClick={handleAdminAccess} className="text-sky-400 font-bold">관리자(보호자) 탭</button>에서 변경할 수 있습니다.
-                      </p>
-                    </div>
-                  </>
-                )}
-
-                {/* ─── Admin Settings Tab ─── */}
-                {settingsTab === 'admin' && (
-                  <>
-                    {/* Password Setup Modal */}
-                    {showPasswordSetup && (
-                      <div className="bg-slate-800 rounded-2xl p-6 border border-sky-500/30 space-y-4">
-                        <div className="flex items-center gap-2 text-sky-400 font-bold">
-                          <ShieldCheck size={20} />
-                          <span>보호자 비밀번호 설정</span>
-                        </div>
-                        <p className="text-xs text-slate-400">학생이 포인트나 보상 설정을 변경하지 못하도록 비밀번호를 설정합니다.</p>
-                        <input
-                          type={showPassword ? 'text' : 'password'}
-                          placeholder="비밀번호 (4자 이상)"
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
-                        />
-                        <input
-                          type={showPassword ? 'text' : 'password'}
-                          placeholder="비밀번호 확인"
-                          value={newPasswordConfirm}
-                          onChange={(e) => setNewPasswordConfirm(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') handleSetPassword(); }}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
-                        />
-                        <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
-                          <input type="checkbox" checked={showPassword} onChange={() => setShowPassword(!showPassword)} className="rounded" />
-                          비밀번호 보기
-                        </label>
-                        {passwordError && <p className="text-rose-400 text-xs">{passwordError}</p>}
-                        <button onClick={handleSetPassword} className="w-full btn-premium py-3 rounded-xl font-bold">설정 완료</button>
-                      </div>
-                    )}
-
-                    {/* Password Prompt */}
-                    {showPasswordPrompt && (
-                      <div className="bg-slate-800 rounded-2xl p-6 border border-amber-500/30 space-y-4">
-                        <div className="flex items-center gap-2 text-amber-400 font-bold">
-                          <Lock size={20} />
-                          <span>비밀번호를 입력하세요</span>
-                        </div>
-                        <div className="relative">
-                          <input
-                            type={showPassword ? 'text' : 'password'}
-                            placeholder="보호자 비밀번호"
-                            value={passwordInput}
-                            onChange={(e) => setPasswordInput(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') handleVerifyPassword(); }}
-                            className="w-full bg-slate-900 border border-slate-700 rounded-xl py-3 px-4 pr-12 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm"
-                            autoFocus
-                          />
-                          <button onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">
-                            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                          </button>
-                        </div>
-                        {passwordError && <p className="text-rose-400 text-xs">{passwordError}</p>}
-                        <div className="flex gap-2">
-                          <button onClick={handleVerifyPassword} className="flex-1 btn-premium py-3 rounded-xl font-bold">확인</button>
-                          <button onClick={() => { setShowPasswordPrompt(false); setPasswordError(''); setSettingsTab('general'); }} className="flex-1 bg-slate-700 py-3 rounded-xl font-bold text-slate-300 hover:bg-slate-600">취소</button>
-                        </div>
-                        <div className="pt-3 border-t border-slate-700">
-                          <button 
-                            onClick={handleFactoryReset}
-                            className="w-full flex items-center justify-center gap-2 text-rose-400 text-xs hover:text-rose-300 py-2"
-                          >
-                            <AlertTriangle size={14} /> 비밀번호를 잊으셨나요? (전체 초기화)
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Unlocked Admin Content */}
-                    {isAdminUnlocked && !showPasswordSetup && !showPasswordPrompt && (
-                      <>
-                        <div className="flex items-center gap-2 text-emerald-400 text-sm font-bold mb-2">
-                          <ShieldCheck size={16} /> 관리자 모드 (잠금 해제됨)
-                        </div>
-
-                        {/* Provider Sub-Tabs */}
-                        <div className="space-y-4">
-                          <label className="block text-sm font-medium text-slate-400">AI 서비스 공급자 선택</label>
-                          <div className="grid grid-cols-3 gap-2 bg-slate-950/60 p-1.5 rounded-2xl border border-slate-800">
-                            <button
-                              type="button"
-                              onClick={() => setActiveProvider('gemini')}
-                              className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
-                                activeProvider === 'gemini'
-                                  ? 'bg-gradient-to-r from-sky-500 to-indigo-500 text-white shadow-lg shadow-sky-500/20'
-                                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                              }`}
-                            >
-                              🚀 Gemini
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setActiveProvider('openai')}
-                              className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
-                                activeProvider === 'openai'
-                                  ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/20'
-                                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                              }`}
-                            >
-                              🟢 OpenAI
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setActiveProvider('claude')}
-                              className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
-                                activeProvider === 'claude'
-                                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/20'
-                                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                              }`}
-                            >
-                              🔥 Claude
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Provider Configuration */}
-                        <div className="space-y-4 pt-2">
-                          {/* API Key Header & Guide Toggle */}
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <label className="text-sm font-medium text-slate-400">
-                                  {activeProvider === 'gemini' ? 'Gemini API Key' : activeProvider === 'openai' ? 'OpenAI API Key' : 'Claude API Key'}
-                                </label>
-                                <button 
-                                  type="button"
-                                  onClick={() => setShowApiHelp(!showApiHelp)}
-                                  className={`transition-colors focus:outline-none ${showApiHelp ? 'text-sky-400' : 'text-slate-500 hover:text-sky-400'}`}
-                                >
-                                  <HelpCircle size={16} />
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Aligned Key Input and Look Up in Sub-panel */}
-                            <div className="relative">
-                              <Key className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                              {activeProvider === 'gemini' && (
-                                <input 
-                                  type="password"
-                                  value={apiKeyGemini}
-                                  onChange={(e) => setApiKeyGemini(e.target.value)}
-                                  placeholder="Google Gemini API 키 입력"
-                                  className="w-full bg-slate-800/50 border border-slate-700 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-sky-500/50 transition-all font-mono text-sm text-slate-200"
-                                />
-                              )}
-                              {activeProvider === 'openai' && (
-                                <input 
-                                  type="password"
-                                  value={apiKeyOpenai}
-                                  onChange={(e) => setApiKeyOpenai(e.target.value)}
-                                  placeholder="OpenAI API 키 입력 (sk-...)"
-                                  className="w-full bg-slate-800/50 border border-slate-700 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all font-mono text-sm text-slate-200"
-                                />
-                              )}
-                              {activeProvider === 'claude' && (
-                                <input 
-                                  type="password"
-                                  value={apiKeyClaude}
-                                  onChange={(e) => setApiKeyClaude(e.target.value)}
-                                  placeholder="Anthropic Claude API 키 입력"
-                                  className="w-full bg-slate-800/50 border border-slate-700 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all font-mono text-sm text-slate-200"
-                                />
-                              )}
-                            </div>
-
-                            {/* 저장 및 모델조회 버튼을 아래쪽에 배치 */}
-                            <div className="mt-2.5">
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  saveAllSettings();
-                                  await handleDiscoverModels();
-                                }}
-                                disabled={isDiscovering}
-                                className="w-full py-2.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
-                              >
-                                <RotateCcw size={13} className={isDiscovering ? 'animate-spin' : ''} /> 저장 및 모델조회
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Dynamic Guide per activeProvider */}
-                          <AnimatePresence>
-                            {showApiHelp && (
-                              <motion.div 
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: 'auto', opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                className="overflow-hidden"
-                              >
-                                <div className="bg-slate-800 border border-sky-500/30 text-slate-300 text-sm rounded-xl p-4 mb-2 shadow-lg space-y-3">
-                                  {activeProvider === 'gemini' && (
-                                    <>
-                                      <p className="font-bold text-sky-400 border-b border-slate-700 pb-2 flex items-center gap-1.5">
-                                        <span>🔑 Gemini API 키 무료 발급 가이드</span>
-                                        <span className="bg-emerald-500/20 text-emerald-400 text-[9px] px-1.5 py-0.5 rounded font-normal">강력추천! 무료</span>
-                                      </p>
-                                      <div className="space-y-2.5 text-xs text-slate-300">
-                                        <p>Gemini API 키는 구글 계정만 있다면 <strong>완전 무료</strong>로 1분 만에 만들 수 있어요!</p>
-                                        <div className="flex gap-2 items-start bg-slate-900/40 p-2.5 rounded-lg border border-slate-700/50">
-                                          <span className="w-5 h-5 bg-sky-500/20 text-sky-400 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">1</span>
-                                          <p>
-                                            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-sky-400 hover:underline font-bold inline-flex items-center gap-1">
-                                              👉 여기를 클릭해 구글 AI Studio로 가기
-                                            </a>
-                                          </p>
-                                        </div>
-                                        <div className="flex gap-2 items-start bg-slate-900/40 p-2.5 rounded-lg border border-slate-700/50">
-                                          <span className="w-5 h-5 bg-sky-500/20 text-sky-400 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">2</span>
-                                          <p>구글 로그인 후 화면 상단의 파란색 <strong className="text-white">&quot;Create API key&quot;</strong> 버튼을 클릭하세요.</p>
-                                        </div>
-                                        <div className="flex gap-2 items-start bg-slate-900/40 p-2.5 rounded-lg border border-slate-700/50">
-                                          <span className="w-5 h-5 bg-sky-500/20 text-sky-400 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">3</span>
-                                          <p><strong className="text-white">&quot;Create API key in new project&quot;</strong>를 누르고 생성된 영어+숫자 키를 복사해서 붙여넣으세요!</p>
-                                        </div>
-                                      </div>
-                                    </>
-                                  )}
-                                  {activeProvider === 'openai' && (
-                                    <>
-                                      <p className="font-bold text-emerald-400 border-b border-slate-700 pb-2">🔑 OpenAI API 키 발급 가이드</p>
-                                      <div className="space-y-2.5 text-xs text-slate-300">
-                                        <p>OpenAI API 키를 발급받으려면 결제용 크레딧(최소 $5) 충전이 필요합니다.</p>
-                                        <div className="flex gap-2 items-start bg-slate-900/40 p-2.5 rounded-lg border border-slate-700/50">
-                                          <span className="w-5 h-5 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">1</span>
-                                          <p>
-                                            <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer" className="text-emerald-400 hover:underline font-bold">
-                                              👉 OpenAI Developer Platform 바로가기
-                                            </a>
-                                          </p>
-                                        </div>
-                                        <div className="flex gap-2 items-start bg-slate-900/40 p-2.5 rounded-lg border border-slate-700/50">
-                                          <span className="w-5 h-5 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">2</span>
-                                          <p>로그인 후 <strong className="text-white">&quot;+ Create new secret key&quot;</strong> 버튼을 눌러 키를 생성하고 복사하세요.</p>
-                                        </div>
-                                      </div>
-                                    </>
-                                  )}
-                                  {activeProvider === 'claude' && (
-                                    <>
-                                      <p className="font-bold text-amber-400 border-b border-slate-700 pb-2">🔑 Anthropic Claude API 키 발급 가이드</p>
-                                      <div className="space-y-2.5 text-xs text-slate-300">
-                                        <p className="text-amber-400/90 bg-amber-500/10 p-2 rounded border border-amber-500/20 text-[11px] leading-relaxed">
-                                          ⚠️ <strong>주의 (CORS 제한):</strong> Anthropic API는 브라우저 직접 호출 시 보안(CORS) 제한이 엄격합니다. 로컬 테스트 및 특수 웹 뷰 환경에서만 원활히 작동합니다.
-                                        </p>
-                                        <div className="flex gap-2 items-start bg-slate-900/40 p-2.5 rounded-lg border border-slate-700/50">
-                                          <span className="w-5 h-5 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">1</span>
-                                          <p>
-                                            <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" className="text-amber-400 hover:underline font-bold">
-                                              👉 Anthropic Console 바로가기
-                                            </a>
-                                          </p>
-                                        </div>
-                                        <div className="flex gap-2 items-start bg-slate-900/40 p-2.5 rounded-lg border border-slate-700/50">
-                                          <span className="w-5 h-5 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">2</span>
-                                          <p>로그인 후 <strong className="text-white">&quot;Create Key&quot;</strong> 버튼을 눌러 키를 생성하고 복사하세요.</p>
-                                        </div>
-                                      </div>
-                                    </>
-                                  )}
-                                </div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-
-                          {/* Model Selection */}
-                          <div>
-                            <label className="block text-sm font-medium text-slate-400 mb-2">AI 모델 선택</label>
-                            {activeProvider === 'gemini' && (
-                              <select 
-                                value={modelGemini}
-                                onChange={(e) => setModelGemini(e.target.value)}
-                                className="w-full bg-slate-800/50 border border-slate-700 rounded-2xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-sky-500/50 transition-all text-slate-200 text-sm font-mono"
-                              >
-                                <option value="gemini-flash-latest">🌟 추천: Gemini Flash Latest (초고속 및 최고 효율)</option>
-                                <option value="gemini-3.5-flash">🌟 추천: Gemini 3.5 Flash (최신 세대 고성능)</option>
-                                <option value="gemini-1.5-pro">Gemini 1.5 Pro (느리지만 높은 문제 완성도)</option>
-                                {discoveredGemini.filter(m => m !== 'gemini-flash-latest' && m !== 'gemini-3.5-flash' && m !== 'gemini-1.5-pro').map(m => (
-                                  <option key={m} value={m}>{m}</option>
-                                ))}
-                              </select>
-                            )}
-                            {activeProvider === 'openai' && (
-                              <select 
-                                value={modelOpenai}
-                                onChange={(e) => setModelOpenai(e.target.value)}
-                                className="w-full bg-slate-800/50 border border-slate-700 rounded-2xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all text-slate-200 text-sm font-mono"
-                              >
-                                <option value="gpt-4o-mini">🌟 추천: GPT-4o Mini (빠르고 매우 똑똑함)</option>
-                                <option value="gpt-4o">GPT-4o (강력한 추론 능력)</option>
-                                <option value="o1-mini">o1-mini (추론 특화 / 수학 과학 우수)</option>
-                                {discoveredOpenai.filter(m => m !== 'gpt-4o-mini' && m !== 'gpt-4o' && m !== 'o1-mini').map(m => (
-                                  <option key={m} value={m}>{m}</option>
-                                ))}
-                              </select>
-                            )}
-                            {activeProvider === 'claude' && (
-                              <select 
-                                value={modelClaude}
-                                onChange={(e) => setModelClaude(e.target.value)}
-                                className="w-full bg-slate-800/50 border border-slate-700 rounded-2xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all text-slate-200 text-sm font-mono"
-                              >
-                                <option value="claude-3-5-sonnet-latest">🌟 추천: Claude 3.5 Sonnet (최상의 어휘력과 국어 퀴즈)</option>
-                                <option value="claude-3-5-haiku-latest">Claude 3.5 Haiku (빠른 속도)</option>
-                                {discoveredClaude.filter(m => m !== 'claude-3-5-sonnet-latest' && m !== 'claude-3-5-haiku-latest').map(m => (
-                                  <option key={m} value={m}>{m}</option>
-                                ))}
-                              </select>
-                            )}
-
-                            {/* 연결 테스트 버튼을 모델 선택 바로 아래에 배치 */}
-                            <div className="mt-2.5">
-                              <button 
-                                type="button"
-                                onClick={handleTestConnection}
-                                disabled={!apiKey || isTesting}
-                                className="w-full py-2.5 bg-slate-800 border border-slate-700 rounded-2xl font-bold hover:bg-slate-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2 text-xs text-slate-300"
-                              >
-                                {isTesting ? '연결 확인 중...' : '🔌 연결 테스트'}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Point Settings */}
-                        <div className="pt-4 border-t border-slate-800 space-y-4">
-                          <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2">🏆 포인트 및 보상 설정</h3>
-                          
-                          <div className="flex items-center justify-between">
-                            <div className="flex flex-col">
-                              <span className="text-sm text-slate-300">통과 기준 (정답률 %)</span>
-                              <span className="text-xs text-slate-500">이 이상 맞춰야 포인트를 받아요</span>
-                            </div>
-                            <input 
-                              type="number" 
-                              value={passThreshold} 
-                              onChange={(e) => setPassThreshold(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
-                              className="bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm focus:outline-none text-slate-300 w-16 text-center"
-                            />
-                          </div>
-                          
-                          {/* Per-type point config */}
-                          <div className="space-y-3">
-                            <p className="text-xs text-slate-400">유형별 획득 포인트 (정답 1개당)</p>
-                            {([
-                              { key: 'MULTIPLE_CHOICE' as const, label: '객관식', note: '2번째 정답 시 50%' },
-                              { key: 'SHORT_ANSWER' as const, label: '단답형', note: '' },
-                              { key: 'ESSAY' as const, label: '서술형', note: '' },
-                              { key: 'CSAT' as const, label: '수능형', note: '' },
-                            ]).map(t => (
-                              <div key={t.key} className="flex items-center justify-between bg-slate-800/30 px-3 py-2 rounded-xl border border-slate-700/30">
-                                <div>
-                                  <span className="text-sm text-slate-300">{t.label}</span>
-                                  {t.note && <span className="text-[10px] text-amber-400/70 ml-2">({t.note})</span>}
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <input 
-                                    type="number" 
-                                    value={pointConfig[t.key]} 
-                                    onChange={(e) => setPointConfig(prev => ({ ...prev, [t.key]: Math.max(0, parseInt(e.target.value) || 0) }))}
-                                    className="bg-slate-800 border border-slate-700 rounded-lg p-1.5 text-sm focus:outline-none text-slate-300 w-14 text-center"
-                                  />
-                                  <span className="text-xs text-slate-500">P</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div className="flex flex-col">
-                              <span className="text-sm text-slate-300 font-semibold">목표 보상 포인트</span>
-                              <span className="text-xs text-slate-500 mt-0.5">학생의 달성 목표 포인트 점수</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <input 
-                                type="number" 
-                                value={targetPoints} 
-                                onChange={(e) => setTargetPoints(Math.max(1, parseInt(e.target.value) || 1))}
-                                className="bg-slate-800 border border-slate-700 rounded-lg p-1.5 text-sm focus:outline-none text-slate-300 w-20 text-center font-bold font-mono text-sky-400"
-                              />
-                              <span className="text-xs text-slate-500 font-bold">P</span>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center justify-between">
-                            <div className="flex flex-col">
-                              <span className="text-sm text-slate-300 font-semibold">매월 포인트 자동 리셋</span>
-                            </div>
-                            <button 
-                              onClick={() => setAutoResetPoints(!autoResetPoints)}
-                              className={`w-12 h-6 rounded-full transition-colors relative ${autoResetPoints ? 'bg-sky-500' : 'bg-slate-700'}`}
-                            >
-                              <motion.div 
-                                animate={{ x: autoResetPoints ? 24 : 2 }}
-                                className="w-5 h-5 bg-white rounded-full absolute top-[2px]"
-                              />
-                            </button>
-                          </div>
-                          
-                          <div className="flex items-center justify-between pt-2">
-                             <span className="text-sm text-slate-300">현재 누적 포인트: <strong className="text-sky-400">{totalPoints} P</strong></span>
-                             <button 
-                               onClick={() => {
-                                 if(confirm('정말 포인트를 초기화 하시겠습니까?')) {
-                                   setTotalPoints(0);
-                                 }
-                                }}
-                               className="px-3 py-1 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-xs"
-                             >
-                               수동 초기화
-                             </button>
-                          </div>
-                        </div>
-
-                        {/* Guardian Locking Controls */}
-                        <div className="pt-4 border-t border-slate-800 space-y-4">
-                          <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2">
-                            <span>🔒 학생용 일반 설정 고정 (잠금)</span>
-                          </h3>
-                          
-                          <div className="flex items-center justify-between bg-slate-950/40 p-3.5 rounded-2xl border border-slate-800">
-                            <div className="flex flex-col">
-                              <span className="text-sm text-slate-300 font-semibold">객관식 재도전 기회 고정</span>
-                              <span className="text-xs text-slate-500 mt-0.5">일반 설정에서 변경 금지</span>
-                            </div>
-                            <button 
-                              onClick={() => setLockRetry(!lockRetry)}
-                              className={`w-12 h-6 rounded-full transition-colors relative ${lockRetry ? 'bg-amber-500' : 'bg-slate-700'}`}
-                            >
-                              <motion.div 
-                                animate={{ x: lockRetry ? 24 : 2 }}
-                                className="w-5 h-5 bg-white rounded-full absolute top-[2px]"
-                              />
-                            </button>
-                          </div>
-
-                          <div className="flex items-center justify-between bg-slate-950/40 p-3.5 rounded-2xl border border-slate-800">
-                            <div className="flex flex-col">
-                              <span className="text-sm text-slate-300 font-semibold">문제 글자 크기 고정</span>
-                              <span className="text-xs text-slate-500 mt-0.5">일반 설정에서 변경 금지</span>
-                            </div>
-                            <button 
-                              onClick={() => setLockFontSize(!lockFontSize)}
-                              className={`w-12 h-6 rounded-full transition-colors relative ${lockFontSize ? 'bg-amber-500' : 'bg-slate-700'}`}
-                            >
-                              <motion.div 
-                                animate={{ x: lockFontSize ? 24 : 2 }}
-                                className="w-5 h-5 bg-white rounded-full absolute top-[2px]"
-                              />
-                            </button>
-                          </div>
-
-                          <div className="flex items-center justify-between bg-slate-950/40 p-3.5 rounded-2xl border border-slate-800">
-                            <div className="flex flex-col">
-                              <span className="text-sm text-slate-300 font-semibold">원문 근거 노출 잠금</span>
-                              <span className="text-xs text-slate-500 mt-0.5">일반 설정에서 변경 금지</span>
-                            </div>
-                            <button 
-                              onClick={() => setLockContextTiming(!lockContextTiming)}
-                              className={`w-12 h-6 rounded-full transition-colors relative ${lockContextTiming ? 'bg-amber-500' : 'bg-slate-700'}`}
-                            >
-                              <motion.div 
-                                animate={{ x: lockContextTiming ? 24 : 2 }}
-                                className="w-5 h-5 bg-white rounded-full absolute top-[2px]"
-                              />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Password change / Factory reset */}
-                        <div className="pt-4 border-t border-slate-800 space-y-3">
-                          <button
-                            onClick={() => { setShowPasswordSetup(true); setShowPasswordPrompt(false); }}
-                            className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl text-sm font-bold transition-colors border border-slate-700"
-                          >
-                            <Lock size={16} /> 비밀번호 변경
-                          </button>
-                          <button
-                            onClick={handleFactoryReset}
-                            className="w-full flex items-center justify-center gap-2 text-rose-400 hover:text-rose-300 py-2 text-xs"
-                          >
-                            <Trash2 size={14} /> 전체 초기화 (모든 데이터 삭제)
-                          </button>
-                        </div>
-
-                        <div className="pt-2">
-                          <button 
-                            onClick={() => {
-                              saveAllSettings();
-                              setShowSettings(false);
-                              setIsAdminUnlocked(false);
-                            }}
-                            className="w-full py-3.5 bg-sky-500 rounded-2xl text-white font-bold hover:bg-sky-600 shadow-lg shadow-sky-500/30 transition-all text-sm"
-                          >
-                            저장 및 닫기
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          </motion.div>
+        <SettingsModal
+          isOpen={showSettings}
+          onClose={() => { setShowSettings(false); saveAllSettings(); }}
+          retryMultipleChoice={retryMultipleChoice}
+          setRetryMultipleChoice={setRetryMultipleChoice}
+          quizFontSize={quizFontSize}
+          setQuizFontSize={setQuizFontSize}
+          showContextTiming={showContextTiming}
+          setShowContextTiming={setShowContextTiming}
+          passThreshold={passThreshold}
+          setPassThreshold={setPassThreshold}
+          pointConfig={pointConfig}
+          setPointConfig={setPointConfig}
+          advancedPoints={advancedPoints}
+          setAdvancedPoints={setAdvancedPoints}
+          currentTheme={theme}
+          setCurrentTheme={setTheme}
+          apiKey={apiKey}
+          setApiKey={(v) => {
+            setApiKey(v);
+            if (activeProvider === 'gemini') setApiKeyGemini(v);
+            else if (activeProvider === 'openai') setApiKeyOpenai(v);
+            else setApiKeyClaude(v);
+          }}
+          aiProvider={activeProvider}
+          setAiProvider={(v) => setActiveProvider(v as 'gemini' | 'openai' | 'claude')}
+          selectedModel={selectedModel}
+          setSelectedModel={(v) => {
+            setSelectedModel(v);
+            if (activeProvider === 'gemini') setModelGemini(v);
+            else if (activeProvider === 'openai') setModelOpenai(v);
+            else setModelClaude(v);
+          }}
+          availableModels={activeProvider === 'gemini' ? discoveredGemini : activeProvider === 'openai' ? discoveredOpenai : discoveredClaude}
+          onFetchModels={handleDiscoverModels}
+          onTestConnection={handleTestConnection}
+          parentPin={parentPin}
+          setParentPin={setParentPin}
+          parentLockEnabled={parentLockEnabled}
+          setParentLockEnabled={setParentLockEnabled}
+          onResetPoints={() => { if(confirm('포인트를 초기화하시겠습니까?')) { setTotalPoints(0); localStorage.setItem('OCI_QUIZ_TOTAL_POINTS', '0'); } }}
+          onResetHistory={async () => { if(confirm('퀴즈 기록을 초기화하시겠습니까?')) { indexedDB.deleteDatabase('OciQuizHistoryDB'); alert('기록이 초기화되었습니다.'); } }}
+          onResetAll={handleFactoryReset}
+          activeUserId={activeUser}
+          onSwitchUser={(id) => { setActiveUserId(id); setActiveUser(id); }}
+        />
+        {showBonusRoulette && (
+          <BonusRoulette
+            minPoints={advancedPoints.bonusMinPoints}
+            maxPoints={advancedPoints.bonusMaxPoints}
+            onComplete={(pts) => { setTotalPoints(prev => prev + pts); setEarnedPoints(prev => prev + pts); setShowBonusRoulette(false); }}
+          />
         )}
+        {showBonusCard && (
+          <BonusCardPick
+            minPoints={advancedPoints.bonusMinPoints}
+            maxPoints={advancedPoints.bonusMaxPoints}
+            onComplete={(pts) => { setTotalPoints(prev => prev + pts); setEarnedPoints(prev => prev + pts); setShowBonusCard(false); }}
+          />
+        )}
+
+
         {showCamera && (
           <CameraPreview 
             onCapture={(capturedFiles) => setFiles(prev => [...prev, ...capturedFiles.map(f => ({ file: f }))])} 
@@ -2391,10 +1793,11 @@ export default function Home() {
               </label>
               <div className="flex flex-col gap-3">
                 {[
-                  { id: 'MULTIPLE_CHOICE', label: '객관식 (5지 선다)', emoji: '📋' },
+                  { id: 'MULTIPLE_CHOICE', label: '객관식 (선다형)', emoji: '📋' },
                   { id: 'SHORT_ANSWER', label: '단답형 (짧은 답)', emoji: '✏️' },
                   { id: 'ESSAY', label: '서술형 (긴 답)', emoji: '📝' },
                   { id: 'CSAT', label: '수능형 (논리 추론)', emoji: '🎓' },
+                  { id: 'TRUE_FALSE', label: 'O/X (참/거짓)', emoji: '⭕' },
                 ].map((type) => (
                   <button
                     key={type.id}
