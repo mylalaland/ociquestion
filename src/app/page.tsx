@@ -57,7 +57,7 @@ export default function Home() {
   const [apiKeyGemini, setApiKeyGemini] = useState('');
   const [apiKeyOpenai, setApiKeyOpenai] = useState('');
   const [apiKeyClaude, setApiKeyClaude] = useState('');
-  const [modelGemini, setModelGemini] = useState('gemini-1.5-flash');
+  const [modelGemini, setModelGemini] = useState('gemini-3.5-flash');
   const [modelOpenai, setModelOpenai] = useState('gpt-4o-mini');
   const [modelClaude, setModelClaude] = useState('claude-3-5-sonnet-latest');
   const [discoveredGemini, setDiscoveredGemini] = useState<string[]>([]);
@@ -389,7 +389,7 @@ export default function Home() {
         setDiscoveredGemini(models);
         
         // Recommend/select default Flash
-        const defaultFlash = models.find(m => m === 'gemini-1.5-flash') || models.find(m => m.includes('1.5-flash')) || models.find(m => m === 'gemini-flash-latest');
+        const defaultFlash = models.find(m => m === 'gemini-3.5-flash') || models.find(m => m.includes('3.5-flash')) || models.find(m => m === 'gemini-flash-latest');
         if (defaultFlash) {
           setModelGemini(defaultFlash);
         } else if (models.length > 0 && !models.includes(modelGemini)) {
