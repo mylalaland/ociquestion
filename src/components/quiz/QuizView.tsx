@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, XCircle, Info, BookOpen, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
+import { CheckCircle2, XCircle, Info, BookOpen, ChevronDown, ChevronUp, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { QuizQuestion } from '@/lib/ai/types';
 
 interface QuizViewProps {
@@ -17,6 +17,13 @@ interface QuizViewProps {
   isFinalized?: boolean;
   onFinalize?: (score: number) => void;
   answerRevealTiming?: 'immediate' | 'after_all';
+  // Review mode props (for viewing past quiz results)
+  reviewMode?: boolean;
+  initialUserAnswers?: Record<string, string>;
+  initialUserAnswers2?: Record<string, string>;
+  initialCorrectIds?: Set<string>;
+  initialHalfPointIds?: Set<string>;
+  onGetAnswers?: (answers: Record<string, string>, answers2: Record<string, string>) => void;
 }
 
 export function isAnswerCorrect(q: QuizQuestion, answer: string): boolean {
@@ -91,9 +98,15 @@ export default function QuizView({
   isFinalized = false,
   onFinalize,
   answerRevealTiming = 'immediate',
+  reviewMode = false,
+  initialUserAnswers,
+  initialUserAnswers2,
+  initialCorrectIds,
+  initialHalfPointIds,
+  onGetAnswers,
 }: QuizViewProps) {
-  const [userAnswers, setUserAnswers] = useState<Record<string, string>>({});
-  const [userAnswers2, setUserAnswers2] = useState<Record<string, string>>({}); // 2nd attempt
+  const [userAnswers, setUserAnswers] = useState<Record<string, string>>(initialUserAnswers || {});
+  const [userAnswers2, setUserAnswers2] = useState<Record<string, string>>(initialUserAnswers2 || {}); // 1st wrong attempt
   const [isCorrect, setIsCorrect] = useState<Record<string, boolean>>({});
   const [showExplanation, setShowExplanation] = useState<Record<string, boolean>>({});
   const [shortAnswerInputs, setShortAnswerInputs] = useState<Record<string, string>>({});
@@ -101,19 +114,55 @@ export default function QuizView({
   const [disabledOptions, setDisabledOptions] = useState<Record<string, string[]>>({});
   const [pendingAnswers, setPendingAnswers] = useState<Record<string, { answer: string; correct: boolean; halfPoints: boolean }>>({});
   const [allRevealed, setAllRevealed] = useState(false);
+  const [showMyAnswers, setShowMyAnswers] = useState(true);
 
   const fontSizeClass = quizFontSize === 'small' ? 'text-base' : quizFontSize === 'large' ? 'text-3xl' : 'text-xl';
   
   const isAfterAll = answerRevealTiming === 'after_all';
 
+  // Initialize review mode state
+  useEffect(() => {
+    if (reviewMode && initialCorrectIds && initialUserAnswers) {
+      const correctMap: Record<string, boolean> = {};
+      questions.forEach(q => {
+        if (initialCorrectIds.has(q.id)) {
+          correctMap[q.id] = true;
+        } else if (initialUserAnswers[q.id]) {
+          correctMap[q.id] = false;
+        }
+      });
+      setIsCorrect(correctMap);
+      setAllRevealed(true);
+      
+      // Reconstruct disabled options from userAnswers2
+      if (initialUserAnswers2) {
+        const disabled: Record<string, string[]> = {};
+        Object.entries(initialUserAnswers2).forEach(([qId, ans]) => {
+          if (ans && initialUserAnswers[qId] && ans !== initialUserAnswers[qId]) {
+            disabled[qId] = [ans];
+          }
+        });
+        setDisabledOptions(disabled);
+      }
+    }
+  }, [reviewMode, initialCorrectIds, initialUserAnswers, initialUserAnswers2, questions]);
+
+  // Report answers back to parent for saving
+  useEffect(() => {
+    if (onGetAnswers && Object.keys(userAnswers).length > 0) {
+      onGetAnswers(userAnswers, userAnswers2);
+    }
+  }, [userAnswers, userAnswers2, onGetAnswers]);
+
   const handleAnswerSelect = useCallback((qId: string, answer: string, q: QuizQuestion) => {
-    if (isFinalized || userAnswers[qId]) return;
+    if (isFinalized || reviewMode || userAnswers[qId]) return;
 
     const correct = isAnswerCorrect(q, answer);
     
     if (!correct && retryMultipleChoice) {
       const currentDisabled = disabledOptions[qId] || [];
       if (currentDisabled.length === 0) {
+        // First wrong attempt: save it and give another chance
         setDisabledOptions(prev => ({ ...prev, [qId]: [...currentDisabled, answer] }));
         setUserAnswers2(prev => ({ ...prev, [qId]: answer })); // Save first wrong attempt
         return;
@@ -135,10 +184,10 @@ export default function QuizView({
         onWrong(qId);
       }
     }
-  }, [isFinalized, userAnswers, retryMultipleChoice, disabledOptions, isAfterAll, onCorrect, onWrong]);
+  }, [isFinalized, reviewMode, userAnswers, retryMultipleChoice, disabledOptions, isAfterAll, onCorrect, onWrong]);
 
   const handleOXSelect = useCallback((qId: string, answer: 'O' | 'X', q: QuizQuestion) => {
-    if (isFinalized || userAnswers[qId]) return;
+    if (isFinalized || reviewMode || userAnswers[qId]) return;
     
     const correct = q.correctAnswer === answer;
     setUserAnswers(prev => ({ ...prev, [qId]: answer }));
@@ -150,11 +199,11 @@ export default function QuizView({
       if (correct) onCorrect(qId);
       else onWrong(qId);
     }
-  }, [isFinalized, userAnswers, isAfterAll, onCorrect, onWrong]);
+  }, [isFinalized, reviewMode, userAnswers, isAfterAll, onCorrect, onWrong]);
 
   const handleShortAnswerSubmit = (qId: string, q: QuizQuestion) => {
     const answer = shortAnswerInputs[qId];
-    if (isFinalized || userAnswers[qId] || !answer || !answer.trim()) return;
+    if (isFinalized || reviewMode || userAnswers[qId] || !answer || !answer.trim()) return;
     
     setUserAnswers(prev => ({ ...prev, [qId]: answer.trim() }));
     
@@ -166,12 +215,12 @@ export default function QuizView({
 
   const handleEssaySubmit = (qId: string) => {
     const answer = essayInputs[qId];
-    if (isFinalized || userAnswers[qId] || !answer || !answer.trim()) return;
+    if (isFinalized || reviewMode || userAnswers[qId] || !answer || !answer.trim()) return;
     setUserAnswers(prev => ({ ...prev, [qId]: answer.trim() }));
   };
 
   const handleSelfGrade = (qId: string, isO: boolean) => {
-    if (isFinalized) return;
+    if (isFinalized || reviewMode) return;
     setIsCorrect(prev => ({ ...prev, [qId]: isO }));
     if (isO) onCorrect(qId);
     else onWrong(qId);
@@ -197,7 +246,7 @@ export default function QuizView({
     ? Object.keys(pendingAnswers).length + questions.filter(q => isCorrect[q.id] !== undefined && !pendingAnswers[q.id]).length
     : questions.filter(q => isCorrect[q.id] !== undefined).length;
   const allAnswered = questions.every(q => userAnswers[q.id]);
-  const isFinished = isAfterAll ? allRevealed : answeredCount === questions.length;
+  const isFinished = reviewMode ? true : (isAfterAll ? allRevealed : answeredCount === questions.length);
   const score = Object.values(isCorrect).filter(Boolean).length;
 
   const typeLabel = (type: string) => {
@@ -211,34 +260,53 @@ export default function QuizView({
     }
   };
 
-  const showResult = (qId: string) => !isAfterAll || allRevealed;
+  const showResult = (qId: string) => !isAfterAll || allRevealed || reviewMode;
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-8">
       {/* Progress bar */}
-      <div className="sticky top-0 z-10 bg-slate-950/80 backdrop-blur-md py-3 px-4 rounded-2xl border border-slate-800 mb-6">
-        <div className="flex justify-between items-center text-sm mb-2">
-          <span className="text-slate-400">진행률</span>
-          <span className="font-bold text-white">
-            {Object.keys(userAnswers).length}/{questions.length} 완료
-          </span>
+      {!reviewMode && (
+        <div className="sticky top-0 z-10 bg-slate-950/80 backdrop-blur-md py-3 px-4 rounded-2xl border border-slate-800 mb-6">
+          <div className="flex justify-between items-center text-sm mb-2">
+            <span className="text-slate-400">진행률</span>
+            <span className="font-bold text-white">
+              {Object.keys(userAnswers).length}/{questions.length} 완료
+            </span>
+          </div>
+          <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+            <motion.div
+              className="h-full bg-gradient-to-r from-sky-500 to-indigo-500 rounded-full"
+              initial={{ width: 0 }}
+              animate={{ width: `${(Object.keys(userAnswers).length / questions.length) * 100}%` }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+            />
+          </div>
         </div>
-        <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-          <motion.div
-            className="h-full bg-gradient-to-r from-sky-500 to-indigo-500 rounded-full"
-            initial={{ width: 0 }}
-            animate={{ width: `${(Object.keys(userAnswers).length / questions.length) * 100}%` }}
-            transition={{ duration: 0.5, ease: 'easeOut' }}
-          />
+      )}
+
+      {/* Review mode toggle */}
+      {reviewMode && (
+        <div className="flex items-center justify-between bg-slate-800/50 rounded-2xl px-4 py-3 border border-slate-700/50">
+          <span className="text-sm text-slate-300 font-bold">📋 내 답안 보기</span>
+          <button
+            onClick={() => setShowMyAnswers(!showMyAnswers)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-bold transition-all ${
+              showMyAnswers ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' : 'bg-slate-700/50 text-slate-400 border border-slate-600'
+            }`}
+          >
+            {showMyAnswers ? <Eye size={14} /> : <EyeOff size={14} />}
+            {showMyAnswers ? '답안 표시 중' : '답안 숨김'}
+          </button>
         </div>
-      </div>
+      )}
 
       {questions.map((q, idx) => {
         const answered = !!userAnswers[q.id];
         const correct = isCorrect[q.id];
         const currentDisabled = disabledOptions[q.id] || [];
-        const isSecondChanceActive = currentDisabled.length > 0 && !answered;
+        const isSecondChanceActive = currentDisabled.length > 0 && !answered && !reviewMode;
         const resultVisible = showResult(q.id);
+        const firstWrongAnswer = userAnswers2[q.id]; // The 1st wrong attempt answer
         
         return (
           <motion.div 
@@ -246,7 +314,7 @@ export default function QuizView({
             initial={{ opacity: 0, x: -20 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
-            className={`glass p-8 rounded-3xl space-y-6 flex flex-col ${isSecondChanceActive ? 'ring-2 ring-amber-500/50' : ''}`}
+            className={`glass p-6 md:p-8 rounded-3xl space-y-5 flex flex-col ${isSecondChanceActive ? 'ring-2 ring-amber-500/50' : ''}`}
           >
             <div className="flex justify-between items-start mb-2">
               <div className="flex gap-2 items-center flex-wrap">
@@ -310,8 +378,13 @@ export default function QuizView({
                       : 'border-rose-500/50 hover:bg-rose-500/10 text-rose-400 hover:border-rose-400 hover:scale-105';
                   }
                   
+                  // Hide in review mode if showMyAnswers is off, but still show correct answer
+                  if (reviewMode && !showMyAnswers && !isThisCorrect) {
+                    btnStyle += ' opacity-30';
+                  }
+                  
                   return (
-                    <button key={choice} disabled={isFinalized || answered} className={btnStyle}
+                    <button key={choice} disabled={isFinalized || reviewMode || answered} className={btnStyle}
                       onClick={() => handleOXSelect(q.id, choice, q)}>
                       {choice}
                     </button>
@@ -325,7 +398,7 @@ export default function QuizView({
               <div className="grid grid-cols-1 gap-3">
                 {q.options.map((opt, i) => {
                   const isSelected = userAnswers[q.id] === opt;
-                  const isFirstWrong = userAnswers2[q.id] === opt; // First wrong attempt
+                  const isFirstWrong = firstWrongAnswer === opt; // First wrong attempt
                   const isThisCorrectOption = isAnswerCorrect(q, opt);
                   const isOptionDisabled = currentDisabled.includes(opt);
 
@@ -335,30 +408,41 @@ export default function QuizView({
                     if (isThisCorrectOption) {
                       btnClass += "border-emerald-500 bg-emerald-500/10 text-emerald-300";
                     } else if (isSelected && !correct) {
-                       btnClass += "border-rose-500 bg-rose-500/10 text-rose-300";
+                      // 2nd attempt wrong
+                      btnClass += "border-rose-500 bg-rose-500/10 text-rose-300";
                     } else if (isFirstWrong) {
-                       btnClass += "border-rose-500/50 bg-rose-500/5 text-rose-400/60 line-through";
+                      // 1st attempt wrong - ALWAYS show this with red, don't use line-through
+                      btnClass += "border-rose-500/60 bg-rose-500/10 text-rose-400";
                     } else {
-                       btnClass += "border-slate-800 text-slate-500 opacity-50";
+                      btnClass += "border-slate-800 text-slate-500 opacity-50";
                     }
                   } else if (answered && !resultVisible) {
-                    btnClass += isSelected
-                      ? "border-sky-500 bg-sky-500/10 text-sky-300"
-                      : isFirstWrong
-                        ? "border-rose-500/50 bg-rose-500/5 text-rose-400/60 line-through"
-                        : "border-slate-800 text-slate-500 opacity-50";
+                    if (isSelected) {
+                      btnClass += "border-sky-500 bg-sky-500/10 text-sky-300";
+                    } else if (isFirstWrong) {
+                      // Keep showing 1st wrong attempt in after_all mode too
+                      btnClass += "border-rose-500/50 bg-rose-500/5 text-rose-400/60";
+                    } else {
+                      btnClass += "border-slate-800 text-slate-500 opacity-50";
+                    }
                   } else {
                     if (isOptionDisabled) {
-                      btnClass += "border-rose-500/50 bg-rose-500/5 text-rose-500/50 opacity-60 line-through cursor-not-allowed";
+                      // During 2nd chance: show 1st wrong as red and disabled
+                      btnClass += "border-rose-500/50 bg-rose-500/10 text-rose-500/70 opacity-70 cursor-not-allowed";
                     } else {
                       btnClass += "border-slate-700 hover:border-sky-500 hover:bg-sky-500/5 text-slate-300";
                     }
                   }
 
+                  // Review mode: dim non-selected options if showMyAnswers off
+                  if (reviewMode && !showMyAnswers && !isThisCorrectOption && !isSelected && !isFirstWrong) {
+                    btnClass += " opacity-30";
+                  }
+
                   return (
                     <button
                       key={i}
-                      disabled={isFinalized || answered || isOptionDisabled}
+                      disabled={isFinalized || reviewMode || answered || isOptionDisabled}
                       className={btnClass}
                       onClick={() => handleAnswerSelect(q.id, opt, q)}
                     >
@@ -366,9 +450,13 @@ export default function QuizView({
                         <span className={`mr-3 font-bold ${answered || isOptionDisabled ? '' : 'text-sky-500'}`}>{i + 1}.</span> 
                         {opt}
                       </div>
-                      {answered && resultVisible && isThisCorrectOption && <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />}
-                      {answered && resultVisible && isSelected && !correct && <XCircle size={18} className="text-rose-400 shrink-0" />}
-                      {answered && resultVisible && isFirstWrong && !isSelected && <XCircle size={14} className="text-rose-400/40 shrink-0" />}
+                      <div className="flex items-center gap-1 shrink-0">
+                        {answered && resultVisible && isThisCorrectOption && <CheckCircle2 size={18} className="text-emerald-400" />}
+                        {answered && resultVisible && isSelected && !correct && <XCircle size={18} className="text-rose-400" />}
+                        {answered && resultVisible && isFirstWrong && !isSelected && <XCircle size={14} className="text-rose-400/60" />}
+                        {/* During 2nd chance phase: show X on disabled option */}
+                        {!answered && isOptionDisabled && <XCircle size={16} className="text-rose-400/60" />}
+                      </div>
                     </button>
                   );
                 })}
@@ -385,16 +473,18 @@ export default function QuizView({
                          {isCorrect[q.id] === undefined ? '제출 완료! 모범 답안과 비교하여 스스로 채점해주세요.' : '채점 완료 시스템에 기록되었습니다.'}
                       </div>
                       <div className="space-y-3 text-sm">
-                        <div>
-                          <span className="text-slate-400 text-xs uppercase tracking-wider block mb-1">내 답안</span>
-                          <p className="bg-slate-900/50 p-3 rounded-lg border border-slate-700">{userAnswers[q.id]}</p>
-                        </div>
+                        {showMyAnswers && (
+                          <div>
+                            <span className="text-slate-400 text-xs uppercase tracking-wider block mb-1">내 답안</span>
+                            <p className="bg-slate-900/50 p-3 rounded-lg border border-slate-700">{userAnswers[q.id]}</p>
+                          </div>
+                        )}
                         <div>
                           <span className="text-emerald-400 text-xs uppercase tracking-wider block mb-1">💡 모범 답안</span>
                           <p className="bg-emerald-500/10 p-3 rounded-lg border border-emerald-500/30 text-emerald-100">{q.correctAnswer}</p>
                         </div>
                       </div>
-                      {isCorrect[q.id] === undefined && !isFinalized && (
+                      {isCorrect[q.id] === undefined && !isFinalized && !reviewMode && (
                         <div className="mt-4 pt-4 border-t border-sky-500/20 flex gap-2 justify-end">
                           <button onClick={() => handleSelfGrade(q.id, true)}
                             className="px-4 py-2 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 rounded-lg text-sm font-bold transition-colors">
@@ -434,16 +524,18 @@ export default function QuizView({
                          {isCorrect[q.id] === undefined ? '제출 완료! 모범 답안과 비교하여 스스로 채점해주세요.' : '채점 완료 시스템에 기록되었습니다.'}
                       </div>
                       <div className="space-y-3 text-sm">
-                        <div>
-                          <span className="text-slate-400 text-xs uppercase tracking-wider block mb-1">내 답안</span>
-                          <p className="bg-slate-900/50 p-3 rounded-lg border border-slate-700 whitespace-pre-wrap">{userAnswers[q.id]}</p>
-                        </div>
+                        {showMyAnswers && (
+                          <div>
+                            <span className="text-slate-400 text-xs uppercase tracking-wider block mb-1">내 답안</span>
+                            <p className="bg-slate-900/50 p-3 rounded-lg border border-slate-700 whitespace-pre-wrap">{userAnswers[q.id]}</p>
+                          </div>
+                        )}
                         <div>
                           <span className="text-emerald-400 text-xs uppercase tracking-wider block mb-1">💡 모범 답안</span>
                           <p className="bg-emerald-500/10 p-3 rounded-lg border border-emerald-500/30 text-emerald-100 whitespace-pre-wrap">{q.correctAnswer}</p>
                         </div>
                       </div>
-                      {isCorrect[q.id] === undefined && !isFinalized && (
+                      {isCorrect[q.id] === undefined && !isFinalized && !reviewMode && (
                         <div className="mt-4 pt-4 border-t border-sky-500/20 flex gap-2 justify-end">
                           <button onClick={() => handleSelfGrade(q.id, true)}
                             className="px-4 py-2 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 rounded-lg text-sm font-bold transition-colors">
@@ -474,7 +566,7 @@ export default function QuizView({
             )}
 
             {/* Footer: context + explanation */}
-            <div className="mt-auto pt-6 border-t border-slate-800 space-y-4">
+            <div className="mt-auto pt-5 border-t border-slate-800 space-y-4">
               <div className="flex flex-wrap gap-4 items-center">
                 {(!showContextTiming || showContextTiming === 'always' || isFinished) && (
                   <button onClick={() => onShowContext(q.sourceContext)}
@@ -509,7 +601,7 @@ export default function QuizView({
       })}
 
       {/* "Reveal All" button for after_all mode */}
-      {isAfterAll && allAnswered && !allRevealed && (
+      {isAfterAll && allAnswered && !allRevealed && !reviewMode && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
           className="glass p-8 rounded-3xl text-center space-y-4 border-2 border-sky-500/50">
           <h3 className="text-xl font-bold">모든 문제를 풀었습니다!</h3>
@@ -523,11 +615,11 @@ export default function QuizView({
 
       {/* Completion */}
       <AnimatePresence>
-        {isFinished && (
+        {isFinished && !reviewMode && (
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="glass p-8 rounded-3xl mt-12 text-center relative overflow-hidden border-2 border-emerald-500/50"
+            className="glass p-8 rounded-3xl mt-8 text-center relative overflow-hidden border-2 border-emerald-500/50"
           >
             <div className="absolute inset-0 bg-emerald-500/10" />
             <div className="relative z-10 flex flex-col items-center">

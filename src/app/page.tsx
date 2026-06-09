@@ -157,6 +157,9 @@ export default function Home() {
   const [isQuizFinalized, setIsQuizFinalized] = useState(false);
   const [showResultScreen, setShowResultScreen] = useState(false);
   const [earnedPoints, setEarnedPoints] = useState(0);
+  const [currentUserAnswers, setCurrentUserAnswers] = useState<Record<string, string>>({});
+  const [currentUserAnswers2, setCurrentUserAnswers2] = useState<Record<string, string>>({});
+  const [reviewMode, setReviewMode] = useState(false);
 
   // ═══════════════════════════════════════
   // Load settings on mount
@@ -177,7 +180,7 @@ export default function Home() {
     if (savedKeyOpenai) setApiKeyOpenai(savedKeyOpenai);
     if (savedKeyClaude) setApiKeyClaude(savedKeyClaude);
 
-    const savedModelGemini = localStorage.getItem('OCI_QUIZ_MODEL_GEMINI') || savedModel || 'gemini-2.5-flash';
+    const savedModelGemini = localStorage.getItem('OCI_QUIZ_MODEL_GEMINI') || savedModel || 'gemini-3.5-flash';
     const savedModelOpenai = localStorage.getItem('OCI_QUIZ_MODEL_OPENAI') || 'gpt-4o-mini';
     const savedModelClaude = localStorage.getItem('OCI_QUIZ_MODEL_CLAUDE') || 'claude-3-5-sonnet-latest';
     if (savedModelGemini) setModelGemini(savedModelGemini);
@@ -500,6 +503,9 @@ export default function Home() {
       setWrongQuestions(new Set());
       setCorrectQuestions(new Set());
       setHalfPointQuestions(new Set());
+      setCurrentUserAnswers({});
+      setCurrentUserAnswers2({});
+      setReviewMode(false);
       setStep(3);
       setIsQuizFinalized(false);
       setShowResultScreen(false);
@@ -675,6 +681,10 @@ export default function Home() {
     history.wrongQuestions = Array.from(wrongQuestions);
     history.isFinalized = true;
     history.pointsEarned = earned;
+    history.userAnswers = currentUserAnswers;
+    history.userAnswers2 = currentUserAnswers2;
+    history.correctQuestions = Array.from(correctQuestions);
+    history.halfPointQuestions = Array.from(halfPointQuestions);
 
     await saveQuizHistory(history);
     
@@ -928,11 +938,10 @@ export default function Home() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+          <div className="flex flex-col lg:flex-row gap-8 items-start w-full max-w-[1600px] mx-auto px-4 md:px-8">
             <div 
-              id="quiz-scroller"
-              className={`space-y-6 overflow-y-auto pr-2 custom-scrollbar ${mobileTab === 'quiz' ? 'block' : 'hidden lg:block'}`}
-              style={{ maxHeight: 'calc(100vh - 200px)' }}
+              id="quiz-content-container"
+              className={`w-full lg:flex-1 space-y-6 ${mobileTab === 'quiz' ? 'block' : 'hidden lg:block'}`}
             >
               <div id="quiz-content" className="pb-8">
                 <QuizView 
@@ -950,11 +959,20 @@ export default function Home() {
                   isFinalized={isQuizFinalized}
                   onFinalize={handleFinalize}
                   answerRevealTiming={advancedPoints.answerRevealTiming}
+                  reviewMode={reviewMode}
+                  initialUserAnswers={currentUserAnswers}
+                  initialUserAnswers2={currentUserAnswers2}
+                  initialCorrectIds={correctQuestions}
+                  initialHalfPointIds={halfPointQuestions}
+                  onGetAnswers={(ans1, ans2) => {
+                    setCurrentUserAnswers(ans1);
+                    setCurrentUserAnswers2(ans2);
+                  }}
                 />
               </div>
             </div>
             
-            <div className={`sticky top-24 ${mobileTab === 'context' ? 'block' : 'hidden lg:block'}`}>
+            <div className={`w-full lg:w-[500px] xl:w-[600px] sticky top-24 ${mobileTab === 'context' ? 'block' : 'hidden lg:block'}`}>
               <FullTextHighlight 
                 text={fullText} 
                 highlights={[]} 
@@ -1492,6 +1510,11 @@ export default function Home() {
                         onClick={() => {
                            setQuizResult(item.quizResult);
                            setWrongQuestions(new Set(item.wrongQuestions || []));
+                           setCorrectQuestions(new Set(item.correctQuestions || []));
+                           setHalfPointQuestions(new Set(item.halfPointQuestions || []));
+                           setCurrentUserAnswers(item.userAnswers || {});
+                           setCurrentUserAnswers2(item.userAnswers2 || {});
+                           setReviewMode(true);
                            setStep(3);
                            setSubject(item.displaySub);
                            setShowHistory(false);
@@ -1554,6 +1577,21 @@ export default function Home() {
           setParentLockEnabled={setParentLockEnabled}
           onResetPoints={() => { if(confirm('포인트를 초기화하시겠습니까?')) { setTotalPoints(0); localStorage.setItem('OCI_QUIZ_TOTAL_POINTS', '0'); } }}
           onResetHistory={async () => { if(confirm('퀴즈 기록을 초기화하시겠습니까?')) { indexedDB.deleteDatabase('OciQuizHistoryDB'); alert('기록이 초기화되었습니다.'); } }}
+          onResetSettings={() => { 
+            if(confirm('설정을 초기화하시겠습니까?')) { 
+              localStorage.removeItem('OCI_QUIZ_NUM_QUESTIONS');
+              localStorage.removeItem('OCI_QUIZ_TYPES');
+              localStorage.removeItem('OCI_QUIZ_DIFFICULTY');
+              localStorage.removeItem('OCI_QUIZ_RETRY_CHOICE');
+              localStorage.removeItem('OCI_QUIZ_FONT_SIZE');
+              localStorage.removeItem('OCI_QUIZ_CONTEXT_TIMING');
+              localStorage.removeItem('OCI_QUIZ_PASS_THRESHOLD');
+              localStorage.removeItem('OCI_QUIZ_POINT_CONFIG');
+              localStorage.removeItem('OCI_QUIZ_ADVANCED_POINTS');
+              localStorage.removeItem('OCI_QUIZ_THEME');
+              window.location.reload();
+            } 
+          }}
           onResetAll={handleFactoryReset}
           activeUserId={activeUser}
           onSwitchUser={(id) => { setActiveUserId(id); setActiveUser(id); }}
@@ -1608,16 +1646,16 @@ export default function Home() {
         {/* Upload Mode Selector */}
         <div className="flex glass p-1 rounded-2xl self-center mx-auto w-fit">
           <button 
-            onClick={() => setUploadMode('file')}
-            className={`flex items-center gap-2 px-6 py-2 rounded-xl transition-all ${uploadMode === 'file' ? 'bg-sky-500 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
-          >
-            <FileText size={18} /> 파일 업로드
-          </button>
-          <button 
             onClick={() => setUploadMode('camera')}
             className={`flex items-center gap-2 px-6 py-2 rounded-xl transition-all ${uploadMode === 'camera' ? 'bg-sky-500 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
           >
             <Camera size={18} /> 카메라 촬영
+          </button>
+          <button 
+            onClick={() => setUploadMode('file')}
+            className={`flex items-center gap-2 px-6 py-2 rounded-xl transition-all ${uploadMode === 'file' ? 'bg-sky-500 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+          >
+            <FileText size={18} /> 파일 업로드
           </button>
         </div>
 
@@ -1660,8 +1698,8 @@ export default function Home() {
                              </div>
                              
                              {f.file.type === 'application/pdf' && (
-                               <div className="flex gap-2 items-center text-xs">
-                                  <span className="text-slate-500">페이지:</span>
+                               <div className="flex gap-1.5 items-center bg-slate-800/80 px-3 py-1.5 rounded-lg ml-auto border border-slate-700 shadow-inner">
+                                  <span className="text-xs font-bold text-slate-400">PDF 구간</span>
                                   <input 
                                     type="number" 
                                     placeholder="시작" 
@@ -1672,9 +1710,9 @@ export default function Home() {
                                       setFiles(newFiles);
                                     }}
                                     onClick={(e) => e.stopPropagation()}
-                                    className="w-14 bg-slate-800 text-center border-slate-600 rounded px-1 py-1" 
+                                    className="w-12 bg-slate-900/50 text-white text-center text-xs border border-slate-600 rounded-md py-1 outline-none focus:border-sky-500 transition-colors" 
                                   />
-                                  <span>-</span>
+                                  <span className="text-slate-500 font-bold">-</span>
                                   <input 
                                     type="number" 
                                     placeholder="끝" 
@@ -1685,7 +1723,7 @@ export default function Home() {
                                       setFiles(newFiles);
                                     }}
                                     onClick={(e) => e.stopPropagation()}
-                                    className="w-14 bg-slate-800 text-center border-slate-600 rounded px-1 py-1" 
+                                    className="w-12 bg-slate-900/50 text-white text-center text-xs border border-slate-600 rounded-md py-1 outline-none focus:border-sky-500 transition-colors" 
                                   />
                                </div>
                              )}

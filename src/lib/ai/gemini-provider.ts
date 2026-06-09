@@ -114,37 +114,37 @@ export class GeminiProvider {
         The overall difficulty of the questions should be: [${difficulty}].
         The quiz should include the following types as evenly distributed as possible: ${types.join(", ")}.
         
-        ===== CRITICAL RULES (MUST FOLLOW) =====
+        ===== CRITICAL RULES (MUST FOLLOW — VIOLATION = INVALID OUTPUT) =====
         
         1. For "MULTIPLE_CHOICE" (객관식):
-           - Create ${multipleChoiceCount}-option multiple choice questions.
-           - The "correctAnswer" field MUST be the EXACT same string as one of the items in the "options" array. Not a number, not a prefix—the exact option text.
-           - There MUST be exactly ONE correct answer among the options. Never create questions where all options are correct or no option is correct.
-           - Each option must be clearly distinct and different.
+           - Create EXACTLY ${multipleChoiceCount} options.
+           - The "correctAnswer" field MUST be the EXACT SAME string as one of the items in the "options" array. Copy-paste the option text exactly.
+           - There MUST be EXACTLY ONE correct answer. The other ${multipleChoiceCount - 1} options MUST be clearly WRONG.
+           - NEVER make all options correct. NEVER make no option correct.
+           - Each option must be meaningfully different from the others.
         
         2. For "CSAT" (수능형):
-           - You MUST include a "passage" field containing a reading passage (지문) that students read before answering. 
-           - The passage must be substantial (at least 3-4 sentences) and directly relevant to the question.
-           - NEVER create a CSAT question without a passage. A CSAT question without a passage is INVALID.
-           - If the question has options, the correctAnswer MUST exactly match one of the option strings.
+           - The "passage" field is ABSOLUTELY REQUIRED. A CSAT question WITHOUT a passage is INVALID and will be rejected.
+           - The passage MUST be at least 4-5 sentences, extracted or paraphrased from the source material.
+           - The question asks about the passage content. Do NOT write "위 글을 읽고" if there is no passage.
+           - If the question has options, the correctAnswer MUST be the EXACT same string as one option.
         
         3. For "TRUE_FALSE" (O/X):
-           - Create statements that are either true or false.
-           - The correctAnswer MUST be exactly "O" (true) or "X" (false).
-           - Do NOT include options array for TRUE_FALSE questions.
+           - The correctAnswer MUST be exactly "O" (true/맞음) or "X" (false/틀림). No other values.
+           - Do NOT include an options array.
         
         4. For "SHORT_ANSWER" (단답형):
-           - Create questions where the answer is a specific word or short phrase (1~3 words max).
+           - Answer is a specific word or short phrase (1~3 words).
         
         5. For "ESSAY" (서술형):
-           - Create questions that require a longer, explanatory answer (1~3 sentences).
-           - The correctAnswer should be a model answer.
+           - The correctAnswer should be a complete model answer (1~3 sentences).
         
-        6. For EVERY question:
-           - "sourceContext" must accurately quote the exact sentence or paragraph from the text that provides/supports the answer.
-           - "explanation" must explain WHY the answer is correct with clear reasoning.
-           - All content must be in Korean as the target users are Korean students.
-           - Each question "id" must be unique (use q1, q2, q3...).
+        6. UNIVERSAL RULES:
+           - "sourceContext" must quote the exact sentence from the source text supporting the answer.
+           - "explanation" must explain WHY the answer is correct.
+           - All content in Korean.
+           - Each "id" must be unique (q1, q2, q3...).
+           - The correctAnswer field must NEVER be empty.
         
         ===== END RULES =====
 
@@ -167,13 +167,13 @@ export class GeminiProvider {
       const response = await result.response;
       const parsed = JSON.parse(response.text()) as QuizResult;
       
-      // Post-process: validate and fix common issues
+      // ═══ Post-process: validate and fix common issues ═══
       parsed.questions = parsed.questions.map(q => {
-        // Fix MULTIPLE_CHOICE: ensure correctAnswer matches an option
+        // Fix MULTIPLE_CHOICE / CSAT with options: ensure correctAnswer matches an option
         if ((q.type === 'MULTIPLE_CHOICE' || q.type === 'CSAT') && q.options && q.options.length > 0) {
           const exactMatch = q.options.find(opt => opt === q.correctAnswer);
           if (!exactMatch) {
-            // Try to find by normalized comparison
+            // Try normalized comparison
             const normalize = (s: string) => s.replace(/^(\d+[\.\s]|\d+번\s*|[\(\[\{]\d+[\)\]\}]\s*|[①②③④⑤]\s*)/, '').replace(/[\s\p{P}]/gu, '');
             const normCorrect = normalize(q.correctAnswer);
             const matchIdx = q.options.findIndex(opt => normalize(opt) === normCorrect || normalize(opt).includes(normCorrect) || normCorrect.includes(normalize(opt)));
@@ -188,6 +188,29 @@ export class GeminiProvider {
                   q.correctAnswer = q.options[idx];
                 }
               }
+              // Final fallback: if still no match, set first option as answer
+              if (!q.options.includes(q.correctAnswer)) {
+                q.correctAnswer = q.options[0];
+              }
+            }
+          }
+        }
+        
+        // Fix CSAT: must have passage
+        if (q.type === 'CSAT' && (!q.passage || q.passage.trim().length < 20)) {
+          // Try to extract passage from the question itself
+          const questionParts = q.question.split('\n').filter(p => p.trim().length > 0);
+          if (questionParts.length > 2) {
+            // Use first parts as passage, last part as question
+            q.passage = questionParts.slice(0, -1).join('\n');
+            q.question = questionParts[questionParts.length - 1];
+          } else {
+            // Convert to ESSAY if we can't fix it
+            q.type = 'ESSAY';
+            q.passage = undefined;
+            if (q.options) {
+              // If it had options and a correct answer in options, keep the answer
+              q.options = undefined;
             }
           }
         }
@@ -201,6 +224,17 @@ export class GeminiProvider {
             q.correctAnswer = 'X';
           }
           q.options = undefined; // Remove any options
+        }
+        
+        // Ensure correctAnswer is never empty
+        if (!q.correctAnswer || q.correctAnswer.trim() === '') {
+          if (q.options && q.options.length > 0) {
+            q.correctAnswer = q.options[0];
+          } else if (q.type === 'TRUE_FALSE') {
+            q.correctAnswer = 'O';
+          } else {
+            q.correctAnswer = '정답 정보 없음';
+          }
         }
         
         return q;

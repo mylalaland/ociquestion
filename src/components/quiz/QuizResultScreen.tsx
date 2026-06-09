@@ -24,20 +24,20 @@ interface QuizResultScreenProps {
 // Pure CSS confetti
 function Confetti() {
   const colors = ['#38bdf8', '#818cf8', '#fcd34d', '#34d399', '#f472b6', '#fb923c'];
-  const pieces = useMemo(() => Array.from({ length: 50 }, (_, i) => ({
+  const pieces = useMemo(() => Array.from({ length: 150 }, (_, i) => ({
     id: i,
     left: `${Math.random() * 100}%`,
     color: colors[i % colors.length],
-    delay: `${Math.random() * 3}s`,
+    delay: `${Math.random() * 2}s`,
     duration: `${2 + Math.random() * 3}s`,
     swayDuration: `${1 + Math.random() * 2}s`,
-    size: `${6 + Math.random() * 8}px`,
+    size: `${6 + Math.random() * 10}px`,
     shape: Math.random() > 0.5 ? '50%' : '2px',
   // eslint-disable-next-line react-hooks/exhaustive-deps
   })), []);
 
   return (
-    <div className="confetti-container">
+    <div className="confetti-container absolute inset-0 pointer-events-none overflow-hidden z-0">
       {pieces.map(p => (
         <div
           key={p.id}
@@ -59,13 +59,13 @@ function Confetti() {
 
 // Fireworks for perfect score
 function Fireworks() {
-  const particles = useMemo(() => Array.from({ length: 30 }, (_, i) => ({
+  const particles = useMemo(() => Array.from({ length: 80 }, (_, i) => ({
     id: i,
-    x: 50 + (Math.random() - 0.5) * 60,
-    y: 30 + (Math.random() - 0.5) * 40,
-    color: ['#fcd34d', '#f472b6', '#38bdf8', '#34d399', '#a78bfa', '#fb923c'][i % 6],
-    delay: `${Math.random() * 2}s`,
-    size: `${4 + Math.random() * 6}px`,
+    x: 50 + (Math.random() - 0.5) * 80,
+    y: 30 + (Math.random() - 0.5) * 60,
+    color: ['#fcd34d', '#f472b6', '#38bdf8', '#34d399', '#a78bfa', '#fb923c', '#ffffff'][i % 7],
+    delay: `${Math.random() * 1.5}s`,
+    size: `${4 + Math.random() * 8}px`,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   })), []);
 
@@ -82,6 +82,7 @@ function Fireworks() {
             width: p.size,
             height: p.size,
             animationDelay: p.delay,
+            boxShadow: `0 0 10px ${p.color}`,
           }}
         />
       ))}

@@ -42,6 +42,7 @@ interface SettingsModalProps {
   setParentLockEnabled: (v: boolean) => void;
   onResetPoints: () => void;
   onResetHistory: () => void;
+  onResetSettings: () => void;
   onResetAll: () => void;
   // User tab
   activeUserId: string;
@@ -531,18 +532,22 @@ export default function SettingsModal(props: SettingsModalProps) {
               {/* Reset buttons */}
               <div className="border-t border-slate-800 pt-4 space-y-2">
                 <label className="text-sm text-slate-300 font-bold flex items-center gap-2"><RefreshCw size={14} /> 초기화</label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   <button onClick={props.onResetPoints}
-                    className="py-2 px-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-xl text-xs font-bold hover:bg-amber-500/20 transition-colors">
+                    className="py-2 px-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-xl text-xs font-bold hover:bg-amber-500/20 transition-colors">
                     포인트만
                   </button>
                   <button onClick={props.onResetHistory}
-                    className="py-2 px-2 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl text-xs font-bold hover:bg-rose-500/20 transition-colors">
+                    className="py-2 px-1 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl text-xs font-bold hover:bg-rose-500/20 transition-colors">
                     기록만
                   </button>
+                  <button onClick={props.onResetSettings}
+                    className="py-2 px-1 bg-sky-500/10 text-sky-400 border border-sky-500/20 rounded-xl text-xs font-bold hover:bg-sky-500/20 transition-colors">
+                    설정만
+                  </button>
                   <button onClick={props.onResetAll}
-                    className="py-2 px-2 bg-red-600/20 text-red-400 border border-red-600/30 rounded-xl text-xs font-bold hover:bg-red-600/30 transition-colors">
-                    전체 초기화
+                    className="py-2 px-1 bg-red-600/20 text-red-400 border border-red-600/30 rounded-xl text-xs font-bold hover:bg-red-600/30 transition-colors">
+                    전체
                   </button>
                 </div>
               </div>

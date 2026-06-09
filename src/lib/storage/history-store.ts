@@ -13,6 +13,10 @@ export interface QuizHistory {
   score?: number; // 100점 만점 기준 점수 또는 맞춘 개수 등
   isFinalized?: boolean; // 기록 고정 여부
   pointsEarned?: number; // 획득 포인트
+  userAnswers?: Record<string, string>; // user's selected answers (1st attempt)
+  userAnswers2?: Record<string, string>; // user's 1st wrong attempt for retry questions
+  correctQuestions?: string[]; // ids of correct questions
+  halfPointQuestions?: string[]; // ids of half-point questions (2nd attempt correct)
 }
 
 const DB_NAME = 'OciQuizHistoryDB';
