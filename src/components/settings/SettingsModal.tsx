@@ -148,7 +148,7 @@ export default function SettingsModal(props: SettingsModalProps) {
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.9, y: 20 }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg max-h-[85vh] bg-slate-900 rounded-[28px] border border-slate-700/50 shadow-2xl overflow-hidden flex flex-col"
+        className="w-full max-w-lg h-[85vh] md:h-[650px] bg-slate-900 rounded-[28px] border border-slate-700/50 shadow-2xl overflow-hidden flex flex-col"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">

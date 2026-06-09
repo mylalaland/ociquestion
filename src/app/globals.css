@@ -237,14 +237,16 @@ main, #__next, .app-container {
 .light .text-slate-400 { color: #334155 !important; }
 .light .text-slate-500, .light .text-slate-600 { color: #475569 !important; }
 
-.light .text-sky-400, .light .text-sky-300 { color: #2563eb !important; }
-.light .text-emerald-400, .light .text-emerald-300 { color: #16a34a !important; }
-.light .text-amber-400, .light .text-amber-300 { color: #d97706 !important; }
-.light .text-rose-400, .light .text-rose-300 { color: #dc2626 !important; }
+.light .text-sky-400, .light .text-sky-300, .light .text-sky-200, .light .text-sky-100 { color: #2563eb !important; }
+.light .text-emerald-400, .light .text-emerald-300, .light .text-emerald-200, .light .text-emerald-100 { color: #16a34a !important; }
+.light .text-amber-400, .light .text-amber-300, .light .text-amber-200, .light .text-amber-100 { color: #d97706 !important; }
+.light .text-rose-400, .light .text-rose-300, .light .text-rose-200, .light .text-rose-100 { color: #dc2626 !important; }
 
-.light .bg-emerald-500\/10 { background-color: #dcfce7 !important; border-color: #86efac !important; }
-.light .bg-sky-500\/10 { background-color: #dbeafe !important; border-color: #93c5fd !important; }
-.light .bg-amber-500\/10 { background-color: #fef3c7 !important; border-color: #fcd34d !important; }
+.light .bg-emerald-500\/10, .light [class*="bg-emerald-500/"] { background-color: #dcfce7 !important; border-color: #86efac !important; }
+.light .bg-sky-500\/10, .light [class*="bg-sky-500/"] { background-color: #dbeafe !important; border-color: #93c5fd !important; }
+.light .bg-amber-500\/10, .light [class*="bg-amber-500/"] { background-color: #fef3c7 !important; border-color: #fcd34d !important; }
+.light [class*="border-sky-500/"] { border-color: #93c5fd !important; }
+.light [class*="shadow-sky-500/"] { box-shadow: none !important; }
 
 .light input, .light select, .light textarea {
   background-color: #ffffff !important;
@@ -299,10 +301,14 @@ main, #__next, .app-container {
 .yellow .text-slate-400 { color: #78350f !important; }
 .yellow .text-slate-500, .yellow .text-slate-600 { color: #92400e !important; }
 
-.yellow .text-sky-400, .yellow .text-sky-300 { color: #d97706 !important; }
-.yellow .text-emerald-400, .yellow .text-emerald-300 { color: #166534 !important; }
-.yellow .text-amber-400, .yellow .text-amber-300 { color: #b45309 !important; }
-.yellow .text-rose-400, .yellow .text-rose-300 { color: #9f1239 !important; }
+.yellow .text-sky-400, .yellow .text-sky-300, .yellow .text-sky-200, .yellow .text-sky-100 { color: #b45309 !important; }
+.yellow .text-emerald-400, .yellow .text-emerald-300, .yellow .text-emerald-200, .yellow .text-emerald-100 { color: #166534 !important; }
+.yellow .text-amber-400, .yellow .text-amber-300, .yellow .text-amber-200, .yellow .text-amber-100 { color: #b45309 !important; }
+.yellow .text-rose-400, .yellow .text-rose-300, .yellow .text-rose-200, .yellow .text-rose-100 { color: #9f1239 !important; }
+
+.yellow [class*="bg-sky-500/"] { background-color: #fef08a !important; border-color: #f59e0b !important; }
+.yellow [class*="border-sky-500/"] { border-color: #f59e0b !important; }
+.yellow [class*="shadow-sky-500/"] { box-shadow: none !important; }
 
 .yellow input, .yellow select, .yellow textarea {
   background-color: #ffffff !important;
@@ -333,63 +339,79 @@ main, #__next, .app-container {
    ║     THEME: CAT (Playful Kitten)       ║
    ╚══════════════════════════════════════╝ */
 .cat {
-  --background: #fdf2f8;
-  --foreground: #4a044e;
-  --primary: #c026d3;
-  --accent: #db2777;
+  --background: #fdf8f5;
+  --foreground: #573312;
+  --primary: #ea580c;
+  --accent: #c2410c;
 }
 
 .cat body {
-  background: #fce7f3 !important;
-  color: #4a044e !important;
+  background: #fdf8f5 !important;
+  color: #573312 !important;
 }
 
 .cat .glass {
   background: #ffffff !important;
-  border: 2px dashed #f472b6 !important;
-  box-shadow: 4px 4px 0 #fbcfe8 !important;
+  border: 2px dashed #fdba74 !important;
+  box-shadow: 4px 4px 0 #ffedd5 !important;
   border-radius: 24px !important;
 }
 
-.cat .bg-slate-950, .cat [class*="bg-slate-950/"] { background-color: #fdf2f8 !important; }
-.cat .bg-slate-900, .cat [class*="bg-slate-900/"] { background-color: #ffffff !important; color: #4a044e !important; }
-.cat .bg-slate-800, .cat [class*="bg-slate-800/"] { background-color: #fce7f3 !important; }
+.cat .bg-slate-950, .cat [class*="bg-slate-950/"] { background-color: #fffaf7 !important; }
+.cat .bg-slate-900, .cat [class*="bg-slate-900/"] { background-color: #ffffff !important; color: #573312 !important; }
+.cat .bg-slate-800, .cat [class*="bg-slate-800/"] { background-color: #faeee7 !important; }
 
-.cat .border-slate-800, .cat .border-slate-700, .cat [class*="border-slate-"] { border-color: #f9a8d4 !important; }
+.cat .border-slate-800, .cat .border-slate-700, .cat [class*="border-slate-"] { border-color: #fed7aa !important; }
 
-.cat .text-white, .cat .text-slate-100, .cat .text-slate-200, .cat .text-slate-300 { color: #4a044e !important; font-weight: bold !important; }
-.cat .text-slate-400 { color: #701a75 !important; }
-.cat .text-slate-500, .cat .text-slate-600 { color: #86198f !important; }
+.cat .text-white, .cat .text-slate-100, .cat .text-slate-200, .cat .text-slate-300 { color: #573312 !important; font-weight: bold !important; }
+.cat .text-slate-400 { color: #8b5a2b !important; }
+.cat .text-slate-500, .cat .text-slate-600 { color: #a16207 !important; }
 
-.cat .text-sky-400, .cat .text-sky-300 { color: #c026d3 !important; }
-.cat .text-emerald-400, .cat .text-emerald-300 { color: #059669 !important; }
-.cat .text-amber-400, .cat .text-amber-300 { color: #d97706 !important; }
-.cat .text-rose-400, .cat .text-rose-300 { color: #db2777 !important; }
+.cat .text-sky-400, .cat .text-sky-300, .cat .text-sky-200, .cat .text-sky-100 { color: #ea580c !important; }
+.cat .text-emerald-400, .cat .text-emerald-300, .cat .text-emerald-200, .cat .text-emerald-100 { color: #059669 !important; }
+.cat .text-amber-400, .cat .text-amber-300, .cat .text-amber-200, .cat .text-amber-100 { color: #d97706 !important; }
+.cat .text-rose-400, .cat .text-rose-300, .cat .text-rose-200, .cat .text-rose-100 { color: #dc2626 !important; }
+
+.cat [class*="bg-sky-500/"] { background-color: #ffedd5 !important; border-color: #fdba74 !important; }
+.cat [class*="border-sky-500/"] { border-color: #fdba74 !important; }
+.cat [class*="shadow-sky-500/"] { box-shadow: none !important; }
 
 .cat input, .cat select, .cat textarea {
   background-color: #ffffff !important;
-  color: #4a044e !important;
-  border: 2px solid #f472b6 !important;
+  color: #573312 !important;
+  border: 2px solid #fdba74 !important;
   border-radius: 16px !important;
 }
-.cat input::placeholder { color: #db2777 !important; }
+.cat input::placeholder { color: #fb923c !important; }
 
 .cat .btn-premium {
-  background: #d946ef !important;
+  background: #f97316 !important;
   color: white !important;
-  border: 2px dashed #fdf4ff !important;
-  box-shadow: 4px 4px 0 #c026d3 !important;
+  border: 2px dashed #fff7ed !important;
+  box-shadow: 4px 4px 0 #ea580c !important;
   border-radius: 20px !important;
 }
 .cat .btn-premium:hover {
   transform: translate(2px, 2px) !important;
-  box-shadow: 2px 2px 0 #c026d3 !important;
+  box-shadow: 2px 2px 0 #ea580c !important;
 }
 .cat .shimmer-text {
   background: none !important;
-  -webkit-text-fill-color: #c026d3 !important;
-  color: #c026d3 !important;
+  -webkit-text-fill-color: #ea580c !important;
+  color: #ea580c !important;
 }
+
+/* ======= Global Shadow Overrides for Light/Retro Themes ======= */
+.light .shadow-sm, .light .shadow, .light .shadow-md, .light .shadow-lg, .light .shadow-xl, .light .shadow-2xl {
+  box-shadow: 0 4px 15px rgba(0,0,0,0.04) !important;
+}
+.yellow .shadow-sm, .yellow .shadow, .yellow .shadow-md, .yellow .shadow-lg, .yellow .shadow-xl, .yellow .shadow-2xl {
+  box-shadow: none !important;
+}
+.cat .shadow-sm, .cat .shadow, .cat .shadow-md, .cat .shadow-lg, .cat .shadow-xl, .cat .shadow-2xl {
+  box-shadow: none !important;
+}
+
 
 /* ======= Fireworks Effect for Perfect Score ======= */
 @keyframes firework-burst {

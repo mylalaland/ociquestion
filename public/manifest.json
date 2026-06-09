@@ -1,7 +1,7 @@
 {
-  "name": "oci 질문",
-  "short_name": "oci 질문",
-  "description": "OCI Questions - AI Document Quizzer App",
+  "name": "라라퀴즈",
+  "short_name": "라라퀴즈",
+  "description": "Lala Quiz - AI Document Quizzer App",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#020617",
@@ -9,9 +9,10 @@
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
+      "src": "/images/yellow_mascot.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

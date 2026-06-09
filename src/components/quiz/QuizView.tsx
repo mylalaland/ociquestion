@@ -360,15 +360,17 @@ export default function QuizView({
                   
                   let btnStyle = 'w-28 h-28 rounded-3xl border-2 text-5xl font-black transition-all flex items-center justify-center ';
                   
-                  if (answered && resultVisible) {
+                  const shouldShowResultState = resultVisible || reviewMode;
+
+                  if (shouldShowResultState) {
                     if (isThisCorrect) {
                       btnStyle += 'border-emerald-500 bg-emerald-500/20 text-emerald-400 shadow-lg shadow-emerald-500/20';
-                    } else if (isSelected && correct === false) {
+                    } else if (isSelected && !isThisCorrect) {
                       btnStyle += 'border-rose-500 bg-rose-500/20 text-rose-400';
                     } else {
                       btnStyle += 'border-slate-800 text-slate-600 opacity-40';
                     }
-                  } else if (answered && !resultVisible) {
+                  } else if (answered) {
                     btnStyle += isSelected
                       ? 'border-sky-500 bg-sky-500/20 text-sky-400'
                       : 'border-slate-700 text-slate-500 opacity-50';
@@ -404,19 +406,21 @@ export default function QuizView({
 
                   let btnClass = "text-left p-4 rounded-xl border transition-all flex justify-between items-center ";
                   
-                  if (answered && resultVisible) {
+                  const shouldShowResultState = resultVisible || reviewMode;
+                  
+                  if (shouldShowResultState) {
                     if (isThisCorrectOption) {
-                      btnClass += "border-emerald-500 bg-emerald-500/10 text-emerald-300";
-                    } else if (isSelected && !correct) {
+                      btnClass += "border-emerald-500 bg-emerald-500/10 text-emerald-300 font-bold border-2 shadow-sm shadow-emerald-500/20";
+                    } else if (isSelected && !isThisCorrectOption) {
                       // 2nd attempt wrong
-                      btnClass += "border-rose-500 bg-rose-500/10 text-rose-300";
+                      btnClass += "border-rose-500 bg-rose-500/10 text-rose-300 border-2";
                     } else if (isFirstWrong) {
                       // 1st attempt wrong - ALWAYS show this with red, don't use line-through
-                      btnClass += "border-rose-500/60 bg-rose-500/10 text-rose-400";
+                      btnClass += "border-rose-500/60 bg-rose-500/10 text-rose-400 border-2";
                     } else {
                       btnClass += "border-slate-800 text-slate-500 opacity-50";
                     }
-                  } else if (answered && !resultVisible) {
+                  } else if (answered) {
                     if (isSelected) {
                       btnClass += "border-sky-500 bg-sky-500/10 text-sky-300";
                     } else if (isFirstWrong) {
