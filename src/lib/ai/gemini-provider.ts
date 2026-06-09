@@ -45,7 +45,20 @@ export class GeminiProvider {
       const result = await model.generateContent("Hi");
       const response = await result.response;
       return !!response.text();
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.message?.includes('503') || error?.status === 503) {
+        console.warn("Gemini 503 High Demand, retrying test in 1.5s...");
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        try {
+          const model = this.genAI.getGenerativeModel({ model: this.modelId });
+          const result = await model.generateContent("Hi");
+          const response = await result.response;
+          return !!response.text();
+        } catch (retryError) {
+          console.error("Gemini Connection Test Retry Failed:", retryError);
+          throw retryError;
+        }
+      }
       console.error("Gemini Connection Test Failed:", error);
       throw error;
     }
