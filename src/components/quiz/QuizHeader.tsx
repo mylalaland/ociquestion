@@ -79,7 +79,7 @@ export default function QuizHeader({
                 <div className="flex items-center gap-2 mb-1">
                   <span className="px-2 py-1 bg-slate-800 rounded-md text-xs font-bold text-sky-400">{subject}</span>
                 </div>
-                <h2 className="text-xl md:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-indigo-400 leading-tight">
+                <h2 className="text-xl md:text-2xl font-bold text-sky-500 dark:text-sky-400 drop-shadow-sm leading-tight">
                   {title}
                 </h2>
                 <p className="text-slate-400 mt-1 text-sm">{summary}</p>

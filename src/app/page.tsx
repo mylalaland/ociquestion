@@ -1620,23 +1620,52 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      {/* ── Hero Section ── */}
+      {/* ── Mascot & Hero Section ── */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-4xl w-full text-center space-y-6 mt-12 px-4"
+        className="max-w-4xl w-full text-center space-y-6 mt-6 px-4 flex flex-col items-center relative"
       >
-        <div className="inline-flex items-center gap-2 px-4 py-2 glass rounded-full text-sm text-sky-400 mb-4">
+        {/* Theme Mascots */}
+        {theme === 'cat' && (
+          <motion.img 
+            initial={{ scale: 0.8, opacity: 0, rotate: -10 }}
+            animate={{ scale: 1, opacity: 1, rotate: 0 }}
+            src="/images/cat_mascot.png" 
+            alt="Cat Mascot" 
+            className="w-32 h-32 md:w-40 md:h-40 object-contain drop-shadow-xl z-10 -mb-4"
+          />
+        )}
+        {theme === 'light' && (
+          <motion.img 
+            initial={{ scale: 0.8, opacity: 0, y: -20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            src="/images/light_mascot.png" 
+            alt="Owl Mascot" 
+            className="w-32 h-32 md:w-40 md:h-40 object-contain drop-shadow-xl z-10 -mb-4"
+          />
+        )}
+        {theme === 'yellow' && (
+          <motion.img 
+            initial={{ scale: 0.8, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            src="/images/yellow_mascot.png" 
+            alt="Chick Mascot" 
+            className="w-32 h-32 md:w-40 md:h-40 object-contain drop-shadow-xl z-10 -mb-4"
+          />
+        )}
+
+        <div className="inline-flex items-center gap-2 px-4 py-2 glass rounded-full text-sm text-sky-400 mb-2 relative z-20 bg-slate-900/50">
           <BrainCircuit size={16} />
           <span className="font-bold tracking-widest uppercase">LALA QUIZ</span>
         </div>
-        <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
+        <h1 className="text-4xl md:text-6xl font-bold tracking-tight relative z-20">
           어떤 문서든 <br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-indigo-400">
+          <span className="text-sky-500 dark:text-sky-400 drop-shadow-sm">
             즉시 퀴즈로
           </span>
         </h1>
-        <p className="text-slate-400 text-lg max-w-2xl mx-auto">
+        <p className="text-slate-400 text-lg max-w-2xl mx-auto relative z-20">
           파일을 올리기만 하면 AI가 핵심을 파악하여 맞춤형 문제를 생성합니다.
         </p>
       </motion.div>
