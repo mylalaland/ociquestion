@@ -10,6 +10,8 @@ interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   // Quiz tab
+  quizTypes: string[];
+  setQuizTypes: (types: string[]) => void;
   retryMultipleChoice: boolean;
   setRetryMultipleChoice: (v: boolean) => void;
   quizFontSize: string;
@@ -181,6 +183,39 @@ export default function SettingsModal(props: SettingsModalProps) {
           {/* ═══════ Quiz Tab ═══════ */}
           {activeTab === 'quiz' && (
             <div className="space-y-4">
+              <div className="space-y-2 border-b border-slate-800 pb-4">
+                <label className="text-sm text-slate-300 font-bold">출제 가능한 문제 유형 (다중 선택 가능)</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'MULTIPLE_CHOICE', label: '객관식 (선다형)', emoji: '📋' },
+                    { id: 'SHORT_ANSWER', label: '단답형 (짧은 답)', emoji: '✏️' },
+                    { id: 'ESSAY', label: '서술형 (긴 답)', emoji: '📝' },
+                    { id: 'CSAT', label: '수능형 (논리 추론)', emoji: '🎓' },
+                    { id: 'TRUE_FALSE', label: 'O/X (참/거짓)', emoji: '⭕' },
+                  ].map(type => (
+                    <button
+                      key={type.id}
+                      onClick={() => {
+                        if (isLocked) return;
+                        if (props.quizTypes.includes(type.id)) {
+                          if (props.quizTypes.length > 1) props.setQuizTypes(props.quizTypes.filter(t => t !== type.id));
+                        } else {
+                          props.setQuizTypes([...props.quizTypes, type.id]);
+                        }
+                      }}
+                      className={`px-3 py-2 rounded-xl border text-xs font-bold transition-all flex items-center justify-between ${
+                        props.quizTypes.includes(type.id) 
+                          ? 'bg-sky-500/20 border-sky-500/50 text-sky-300' 
+                          : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
+                      } ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      <span>{type.emoji} {type.label}</span>
+                      {props.quizTypes.includes(type.id) && <Check size={14} className="text-sky-400" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <Toggle value={props.retryMultipleChoice} onChange={props.setRetryMultipleChoice} label="객관식 2번 기회" locked={isLocked} />
               
               <div className="space-y-2">
@@ -483,7 +518,9 @@ export default function SettingsModal(props: SettingsModalProps) {
 
               {/* API Config */}
               <div className="border-t border-slate-800 pt-4 space-y-3">
-                <label className="text-sm text-slate-300 font-bold">AI 제공자</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm text-slate-300 font-bold">AI 제공자 선택 및 API 키 설정</label>
+                </div>
                 <div className="flex gap-2">
                   {['gemini', 'openai', 'claude'].map(p => (
                     <button key={p} onClick={() => props.setAiProvider(p)}
@@ -493,6 +530,37 @@ export default function SettingsModal(props: SettingsModalProps) {
                       {p === 'gemini' ? '🟦 Gemini' : p === 'openai' ? '🟩 OpenAI' : '🟧 Claude'}
                     </button>
                   ))}
+                </div>
+                
+                {/* AI Provider Descriptions */}
+                <div className="p-3 bg-slate-800/50 border border-slate-700 rounded-xl mt-2">
+                  {props.aiProvider === 'gemini' && (
+                    <div className="text-sm text-slate-300">
+                      <p className="font-bold text-sky-400 mb-1">🟦 Google Gemini</p>
+                      <p className="text-xs mb-2 text-slate-400">구글의 최신 AI 모델입니다. 무료 할당량이 넉넉하여 처음 사용하시기 좋습니다.</p>
+                      <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-xs text-sky-400 hover:underline flex items-center gap-1">
+                        👉 Gemini API 키 무료 발급받기
+                      </a>
+                    </div>
+                  )}
+                  {props.aiProvider === 'openai' && (
+                    <div className="text-sm text-slate-300">
+                      <p className="font-bold text-emerald-400 mb-1">🟩 OpenAI (ChatGPT)</p>
+                      <p className="text-xs mb-2 text-slate-400">가장 널리 쓰이는 AI 모델(GPT-4o 등)입니다. 사용한 만큼 비용이 발생합니다.</p>
+                      <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-400 hover:underline flex items-center gap-1">
+                        👉 OpenAI API 키 발급받기
+                      </a>
+                    </div>
+                  )}
+                  {props.aiProvider === 'claude' && (
+                    <div className="text-sm text-slate-300">
+                      <p className="font-bold text-orange-400 mb-1">🟧 Anthropic Claude</p>
+                      <p className="text-xs mb-2 text-slate-400">자연스럽고 문맥을 잘 파악하는 뛰어난 AI 모델(Claude 3.5 등)입니다.</p>
+                      <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" className="text-xs text-orange-400 hover:underline flex items-center gap-1">
+                        👉 Claude API 키 발급받기
+                      </a>
+                    </div>
+                  )}
                 </div>
               </div>
 

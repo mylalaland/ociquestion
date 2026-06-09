@@ -98,8 +98,8 @@ export interface ThemeOption {
 export const THEME_OPTIONS: ThemeOption[] = [
   { id: 'dark', name: '다크 모드', emoji: '🌙', description: '기본 어두운 테마', preview: 'linear-gradient(135deg, #0f172a, #1e293b)' },
   { id: 'light', name: '밝은 모드', emoji: '☀️', description: '깔끔한 밝은 테마', preview: 'linear-gradient(135deg, #f8fafc, #e2e8f0)' },
-  { id: 'yellow', name: '노란 모드', emoji: '🌻', description: '따뜻한 크림 톤', preview: 'linear-gradient(135deg, #fef9c3, #fde68a)' },
-  { id: 'cat', name: '고양이 모드', emoji: '🐱', description: '귀여운 핑크 테마', preview: 'linear-gradient(135deg, #fce7f3, #e9d5ff)' },
+  { id: 'yellow', name: '병아리 모드', emoji: '🐥', description: '따뜻한 크림 톤', preview: 'linear-gradient(135deg, #fef9c3, #fde68a)' },
+  { id: 'cat', name: '고양이 모드', emoji: '🐱', description: '귀여운 크림오렌지 테마', preview: 'linear-gradient(135deg, #ffedd5, #fdba74)' },
 ];
 
 // User profile for multi-user support

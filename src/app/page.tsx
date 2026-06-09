@@ -101,7 +101,7 @@ export default function Home() {
   const [lockContextTiming, setLockContextTiming] = useState(false);
   const [targetPoints, setTargetPoints] = useState(1000);
   const [pointModalTab, setPointModalTab] = useState<'goal' | 'chart' | 'logs'>('goal');
-  const [theme, setTheme] = useState<ThemeId>('dark');
+  const [theme, setTheme] = useState<ThemeId>('yellow');
   
   // ─── Multi-User ───
   const [activeUser, setActiveUser] = useState('default');
@@ -1538,6 +1538,8 @@ export default function Home() {
         <SettingsModal
           isOpen={showSettings}
           onClose={() => { setShowSettings(false); saveAllSettings(); }}
+          quizTypes={selectedTypes}
+          setQuizTypes={setSelectedTypes}
           retryMultipleChoice={retryMultipleChoice}
           setRetryMultipleChoice={setRetryMultipleChoice}
           quizFontSize={quizFontSize}
@@ -1855,35 +1857,28 @@ export default function Home() {
             </div>
 
             <div className="flex-1 space-y-4 md:border-l md:border-slate-800 md:pl-8">
-              <label className="text-sm font-semibold text-slate-300 flex items-center gap-2 mb-4">
-                문제 유형
-              </label>
-              <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between mb-4">
+                <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                  출제 가능 유형
+                </label>
+                <button 
+                  onClick={() => { setShowSettings(true); setSettingsTab('quiz'); }}
+                  className="text-[10px] bg-slate-800 px-2 py-1 rounded text-slate-400 hover:text-white transition-colors"
+                >
+                  설정에서 변경
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
                 {[
-                  { id: 'MULTIPLE_CHOICE', label: '객관식 (선다형)', emoji: '📋' },
-                  { id: 'SHORT_ANSWER', label: '단답형 (짧은 답)', emoji: '✏️' },
-                  { id: 'ESSAY', label: '서술형 (긴 답)', emoji: '📝' },
-                  { id: 'CSAT', label: '수능형 (논리 추론)', emoji: '🎓' },
-                  { id: 'TRUE_FALSE', label: 'O/X (참/거짓)', emoji: '⭕' },
-                ].map((type) => (
-                  <button
-                    key={type.id}
-                    onClick={() => {
-                      if (selectedTypes.includes(type.id)) {
-                        if (selectedTypes.length > 1) setSelectedTypes(selectedTypes.filter(t => t !== type.id));
-                      } else {
-                        setSelectedTypes([...selectedTypes, type.id]);
-                      }
-                    }}
-                    className={`px-4 py-3 rounded-xl border text-sm transition-all flex items-center justify-between ${
-                      selectedTypes.includes(type.id) 
-                        ? 'bg-sky-500/20 border-sky-500/50 text-sky-100 shadow-lg shadow-sky-500/10' 
-                        : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
-                    }`}
-                  >
-                    <span>{type.emoji} {type.label}</span>
-                    {selectedTypes.includes(type.id) && <CheckCircle2 size={16} className="text-sky-400" />}
-                  </button>
+                  { id: 'MULTIPLE_CHOICE', label: '객관식', emoji: '📋' },
+                  { id: 'SHORT_ANSWER', label: '단답형', emoji: '✏️' },
+                  { id: 'ESSAY', label: '서술형', emoji: '📝' },
+                  { id: 'CSAT', label: '수능형', emoji: '🎓' },
+                  { id: 'TRUE_FALSE', label: 'O/X', emoji: '⭕' },
+                ].filter(t => selectedTypes.includes(t.id)).map((type) => (
+                  <div key={type.id} className="px-3 py-2 bg-sky-500/10 border border-sky-500/30 rounded-lg text-sm font-bold text-sky-300 flex items-center gap-1.5 shadow-sm">
+                    <span>{type.emoji}</span> {type.label}
+                  </div>
                 ))}
               </div>
             </div>
