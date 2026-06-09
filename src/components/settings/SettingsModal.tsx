@@ -9,6 +9,7 @@ import { getAllUsers, createUser, updateUserName, deleteUser, getActiveUserId, s
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialTab?: SettingsTab;
   // Quiz tab
   quizTypes: string[];
   setQuizTypes: (types: string[]) => void;
@@ -51,10 +52,10 @@ interface SettingsModalProps {
   onSwitchUser: (id: string) => void;
 }
 
-type SettingsTab = 'quiz' | 'points' | 'theme' | 'users' | 'admin';
+export type SettingsTab = 'quiz' | 'points' | 'theme' | 'users' | 'admin';
 
 export default function SettingsModal(props: SettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('quiz');
+  const [activeTab, setActiveTab] = useState<SettingsTab>(props.initialTab || 'quiz');
   const [showPin, setShowPin] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [adminUnlocked, setAdminUnlocked] = useState(false);
@@ -77,9 +78,12 @@ export default function SettingsModal(props: SettingsModalProps) {
 
   useEffect(() => {
     if (props.isOpen) {
+      if (props.initialTab) {
+        setActiveTab(props.initialTab);
+      }
       setTimeout(checkScroll, 100);
     }
-  }, [props.isOpen]);
+  }, [props.isOpen, props.initialTab]);
 
   useEffect(() => {
     window.addEventListener('resize', checkScroll);

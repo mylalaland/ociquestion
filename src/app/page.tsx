@@ -13,7 +13,7 @@ import QuizResultScreen from '@/components/quiz/QuizResultScreen';
 import FullTextHighlight from '@/components/viewer/FullTextHighlight';
 import CameraPreview from '@/components/shared/CameraPreview';
 import QuizHeader from '@/components/quiz/QuizHeader';
-import SettingsModal from '@/components/settings/SettingsModal';
+import SettingsModal, { SettingsTab } from '@/components/settings/SettingsModal';
 import BonusRoulette from '@/components/bonus/BonusRoulette';
 import BonusCardPick from '@/components/bonus/BonusCardPick';
 import { saveQuizHistory, getAllQuizHistory, QuizHistory, PointLog, savePointLog, getPointLogs } from '@/lib/storage/history-store';
@@ -151,7 +151,7 @@ export default function Home() {
   const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null);
   const [editingSubjectText, setEditingSubjectText] = useState<string>('');
   const [showApiHelp, setShowApiHelp] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'general' | 'admin'>('general');
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('quiz');
   
   const [currentQuizId, setCurrentQuizId] = useState<string | null>(null);
   const [isQuizFinalized, setIsQuizFinalized] = useState(false);
@@ -1024,7 +1024,7 @@ export default function Home() {
               onClick={() => {
                  setShowSettings(!showSettings);
                  setShowHistory(false);
-                 setSettingsTab('general');
+                 setSettingsTab('quiz');
                  setIsAdminUnlocked(false);
               }}
               className="p-2.5 glass rounded-xl text-slate-400 hover:text-sky-400 transition-colors"
@@ -1538,6 +1538,7 @@ export default function Home() {
         <SettingsModal
           isOpen={showSettings}
           onClose={() => { setShowSettings(false); saveAllSettings(); }}
+          initialTab={settingsTab}
           quizTypes={selectedTypes}
           setQuizTypes={setSelectedTypes}
           retryMultipleChoice={retryMultipleChoice}
