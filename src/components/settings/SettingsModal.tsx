@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, BookOpen, Trophy, Palette, Users, Shield, Plus, Pencil, Trash2, Check, RefreshCw, Eye, EyeOff, Wifi } from 'lucide-react';
+import { X, BookOpen, Trophy, Palette, Users, Shield, Plus, Pencil, Trash2, Check, RefreshCw, Eye, EyeOff, Wifi, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PointConfig, DEFAULT_POINT_CONFIG, AdvancedPointSettings, DEFAULT_ADVANCED_POINT_SETTINGS, ThemeId, THEME_OPTIONS, UserProfile } from '@/lib/ai/types';
 import { getAllUsers, createUser, updateUserName, deleteUser, getActiveUserId, setActiveUserId, ensureDefaultUser } from '@/lib/storage/user-store';
 
@@ -61,6 +61,30 @@ export default function SettingsModal(props: SettingsModalProps) {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScroll = () => {
+    if (tabsRef.current) {
+      setCanScrollLeft(tabsRef.current.scrollLeft > 0);
+      setCanScrollRight(
+        tabsRef.current.scrollLeft < tabsRef.current.scrollWidth - tabsRef.current.clientWidth - 1
+      );
+    }
+  };
+
+  useEffect(() => {
+    if (props.isOpen) {
+      setTimeout(checkScroll, 100);
+    }
+  }, [props.isOpen]);
+
+  useEffect(() => {
+    window.addEventListener('resize', checkScroll);
+    return () => window.removeEventListener('resize', checkScroll);
+  }, []);
   const [showApiKey, setShowApiKey] = useState(false);
 
   useEffect(() => {
@@ -163,21 +187,42 @@ export default function SettingsModal(props: SettingsModalProps) {
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-slate-800 overflow-x-auto px-2">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-bold whitespace-nowrap transition-colors border-b-2 ${
-                activeTab === tab.id
-                  ? 'border-sky-500 text-sky-400'
-                  : 'border-transparent text-slate-500 hover:text-slate-300'
-              }`}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          ))}
+        <div className="relative border-b border-slate-800">
+          {canScrollLeft && (
+            <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-slate-900 to-transparent z-10 flex items-center justify-start">
+              <button onClick={() => tabsRef.current?.scrollBy({ left: -100, behavior: 'smooth' })} className="p-1 text-slate-400 hover:text-white">
+                <ChevronLeft size={16} />
+              </button>
+            </div>
+          )}
+          <div 
+            ref={tabsRef}
+            onScroll={checkScroll}
+            className="flex overflow-x-auto px-2 custom-scrollbar-hide"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1.5 px-4 py-3 text-sm font-bold whitespace-nowrap transition-colors border-b-2 ${
+                  activeTab === tab.id
+                    ? 'border-sky-500 text-sky-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          {canScrollRight && (
+            <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-slate-900 to-transparent z-10 flex items-center justify-end">
+              <button onClick={() => tabsRef.current?.scrollBy({ left: 100, behavior: 'smooth' })} className="p-1 text-slate-400 hover:text-white">
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Content */}
