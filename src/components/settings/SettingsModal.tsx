@@ -143,7 +143,9 @@ export default function SettingsModal(props: SettingsModalProps) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-      onClick={props.onClose}
+      onPointerDown={(e) => {
+        if (e.target === e.currentTarget) props.onClose();
+      }}
     >
       <motion.div
         initial={{ scale: 0.9, y: 20 }}
