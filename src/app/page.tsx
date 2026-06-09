@@ -392,8 +392,10 @@ export default function Home() {
         const defaultFlash = models.find(m => m === 'gemini-3.5-flash') || models.find(m => m.includes('3.5-flash')) || models.find(m => m === 'gemini-flash-latest');
         if (defaultFlash) {
           setModelGemini(defaultFlash);
+          setSelectedModel(defaultFlash);
         } else if (models.length > 0 && !models.includes(modelGemini)) {
           setModelGemini(models[0]);
+          setSelectedModel(models[0]);
         }
         alert(`총 ${models.length}개의 Gemini 모델을 조회하여 반영했습니다.`);
       } else if (activeProvider === 'openai') {
