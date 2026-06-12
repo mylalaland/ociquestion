@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, BookOpen, Trophy, Palette, Users, Shield, Plus, Pencil, Trash2, Check, RefreshCw, Eye, EyeOff, Wifi, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, BookOpen, Trophy, Palette, Users, Shield, Plus, Pencil, Trash2, Check, RefreshCw, Eye, EyeOff, Wifi, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { PointConfig, DEFAULT_POINT_CONFIG, AdvancedPointSettings, DEFAULT_ADVANCED_POINT_SETTINGS, ThemeId, THEME_OPTIONS, UserProfile } from '@/lib/ai/types';
 import { getAllUsers, createUser, updateUserName, deleteUser, getActiveUserId, setActiveUserId, ensureDefaultUser } from '@/lib/storage/user-store';
 
@@ -38,6 +38,8 @@ interface SettingsModalProps {
   setSelectedModel: (v: string) => void;
   availableModels: string[];
   onFetchModels: () => void;
+  isTesting?: boolean;
+  isDiscovering?: boolean;
   onTestConnection: () => void;
   parentPin: string;
   setParentPin: (v: string) => void;
@@ -628,12 +630,31 @@ export default function SettingsModal(props: SettingsModalProps) {
               </div>
 
               <div className="flex gap-2">
-                <button onClick={props.onFetchModels} className="flex-1 btn-premium px-4 py-2 rounded-xl text-sm font-bold">
-                  모델 가져오기
+                <button 
+                  onClick={props.onFetchModels} 
+                  disabled={props.isDiscovering || props.isTesting}
+                  className={`flex-1 btn-premium px-4 py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2 ${props.isDiscovering ? 'opacity-80 cursor-wait' : ''} disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {props.isDiscovering ? (
+                    <><Loader2 size={14} className="animate-spin" /> 조회 중...</>
+                  ) : (
+                    '모델 가져오기'
+                  )}
                 </button>
-                <button onClick={props.onTestConnection}
-                  className="flex items-center gap-1 px-4 py-2 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl text-sm font-bold hover:bg-emerald-500/30 transition-colors">
-                  <Wifi size={14} /> 연결 테스트
+                <button 
+                  onClick={props.onTestConnection}
+                  disabled={props.isTesting || props.isDiscovering}
+                  className={`flex items-center gap-1.5 px-4 py-2 border rounded-xl text-sm font-bold transition-all ${
+                    props.isTesting 
+                      ? 'bg-emerald-500/30 text-emerald-300 border-emerald-400/50 animate-pulse cursor-wait' 
+                      : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {props.isTesting ? (
+                    <><Loader2 size={14} className="animate-spin" /> 테스트 중...</>
+                  ) : (
+                    <><Wifi size={14} /> 연결 테스트</>
+                  )}
                 </button>
               </div>
 

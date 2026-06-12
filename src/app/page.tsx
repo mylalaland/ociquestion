@@ -125,6 +125,8 @@ export default function Home() {
   
   // ─── File & Processing ───
   const [files, setFiles] = useState<{file: File, startPage?: number, endPage?: number}[]>([]);
+  const [pdfPageCounts, setPdfPageCounts] = useState<Record<number, number>>({});
+  const [pdfPreviews, setPdfPreviews] = useState<Record<string, string>>({});
   const [isProcessing, setIsProcessing] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [isDiscovering, setIsDiscovering] = useState(false);
@@ -471,8 +473,16 @@ export default function Home() {
       const imageFiles = files.filter(f => f.file.type.startsWith('image/')).map(f => f.file);
 
       for (const pdfItem of pdfFiles) {
-        const pages = await extractTextFromPdf(pdfItem.file, pdfItem.startPage, pdfItem.endPage);
-        combinedText += pages.map(p => p.text).join('\n') + '\n';
+        try {
+          const pages = await extractTextFromPdf(pdfItem.file, pdfItem.startPage, pdfItem.endPage);
+          combinedText += pages.map(p => p.text).join('\n') + '\n';
+        } catch (pdfError: unknown) {
+          console.error('PDF extraction failed for:', pdfItem.file.name, pdfError);
+          const pdfErr = pdfError as Error;
+          alert(`PDF 파일 "${pdfItem.file.name}"을(를) 읽을 수 없습니다.\n\n원인: ${pdfErr.message || '알 수 없는 오류'}\n\n이미지(JPG/PNG)로 변환하여 다시 시도해 주세요.`);
+          setIsProcessing(false);
+          return;
+        }
       }
 
       if (imageFiles.length > 0) {
@@ -482,19 +492,35 @@ export default function Home() {
         setImageUrls([]);
       }
 
+      // 텍스트도 이미지도 없으면 에러
+      if (combinedText.trim().length === 0 && imageFiles.length === 0) {
+        alert('업로드된 파일에서 텍스트를 추출할 수 없고 이미지도 없습니다.\n\n다른 파일을 업로드해 주세요.');
+        setIsProcessing(false);
+        return;
+      }
+
       setFullText(combinedText);
       
       let result;
       const mcCount = advancedPoints.multipleChoiceCount;
-      if (activeProvider === 'openai') {
-        const provider = new OpenAIProvider(apiKey, selectedModel);
-        result = await provider.generateQuiz(combinedText, selectedTypes, numQuestions, difficulty, mcCount);
-      } else if (activeProvider === 'claude') {
-        const provider = new ClaudeProvider(apiKey, selectedModel);
-        result = await provider.generateQuiz(combinedText, selectedTypes, numQuestions, difficulty, mcCount);
-      } else {
-        const provider = new GeminiProvider(apiKey, selectedModel);
-        result = await provider.generateQuiz(combinedText, selectedTypes, imageFiles, numQuestions, difficulty, mcCount);
+      try {
+        if (activeProvider === 'openai') {
+          const provider = new OpenAIProvider(apiKey, selectedModel);
+          result = await provider.generateQuiz(combinedText, selectedTypes, numQuestions, difficulty, mcCount);
+        } else if (activeProvider === 'claude') {
+          const provider = new ClaudeProvider(apiKey, selectedModel);
+          result = await provider.generateQuiz(combinedText, selectedTypes, numQuestions, difficulty, mcCount);
+        } else {
+          const provider = new GeminiProvider(apiKey, selectedModel);
+          result = await provider.generateQuiz(combinedText, selectedTypes, imageFiles, numQuestions, difficulty, mcCount);
+        }
+      } catch (aiError: unknown) {
+        // Re-throw to be caught by the outer catch block
+        throw aiError;
+      }
+      
+      if (!result || !result.questions || !Array.isArray(result.questions)) {
+        throw new Error('AI 응답에서 문제 목록을 파싱할 수 없습니다.');
       }
       
       if (result.extractedText) {
@@ -1576,6 +1602,8 @@ export default function Home() {
           availableModels={activeProvider === 'gemini' ? discoveredGemini : activeProvider === 'openai' ? discoveredOpenai : discoveredClaude}
           onFetchModels={handleDiscoverModels}
           onTestConnection={handleTestConnection}
+          isTesting={isTesting}
+          isDiscovering={isDiscovering}
           parentPin={parentPin}
           setParentPin={setParentPin}
           parentLockEnabled={parentLockEnabled}
@@ -1680,13 +1708,13 @@ export default function Home() {
         {/* Upload Mode Selector */}
         <div className="flex glass p-1 rounded-2xl self-center mx-auto w-fit">
           <button 
-            onClick={() => setUploadMode('camera')}
+            onClick={() => { if (uploadMode !== 'camera') { setFiles([]); setPdfPageCounts({}); setPdfPreviews({}); } setUploadMode('camera'); }}
             className={`flex items-center gap-2 px-6 py-2 rounded-xl transition-all ${uploadMode === 'camera' ? 'bg-sky-500 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
           >
             <Camera size={18} /> 카메라 촬영
           </button>
           <button 
-            onClick={() => setUploadMode('file')}
+            onClick={() => { if (uploadMode !== 'file') { setFiles([]); setPdfPageCounts({}); setPdfPreviews({}); } setUploadMode('file'); }}
             className={`flex items-center gap-2 px-6 py-2 rounded-xl transition-all ${uploadMode === 'file' ? 'bg-sky-500 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
           >
             <FileText size={18} /> 파일 업로드
@@ -1782,9 +1810,27 @@ export default function Home() {
                       multiple
                       accept="application/pdf,image/*"
                       className="hidden" 
-                      onChange={(e) => {
-                        const newFiles = Array.from(e.target.files || []).map(file => ({ file, startPage: 1, endPage: undefined }));
+                      onChange={async (e) => {
+                        const selectedFiles = Array.from(e.target.files || []);
+                        const newFiles = selectedFiles.map(file => ({ file, startPage: 1, endPage: undefined as number | undefined }));
+                        const baseIndex = files.length;
                         setFiles(prev => [...prev, ...newFiles]);
+                        
+                        // Read PDF page counts asynchronously
+                        for (let idx = 0; idx < selectedFiles.length; idx++) {
+                          const file = selectedFiles[idx];
+                          if (file.type === 'application/pdf') {
+                            try {
+                              const pdfjs = await import('pdfjs-dist');
+                              pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+                              const arrayBuffer = await file.arrayBuffer();
+                              const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+                              setPdfPageCounts(prev => ({ ...prev, [baseIndex + idx]: pdf.numPages }));
+                            } catch (err) {
+                              console.warn('Failed to read PDF page count:', err);
+                            }
+                          }
+                        }
                       }}
                     />
                   )}
@@ -1862,14 +1908,14 @@ export default function Home() {
             <div className="flex-1 space-y-4 md:border-l md:border-slate-800 md:pl-8">
               <div className="flex items-center justify-between mb-4">
                 <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-                  출제 가능 유형
+                  출제 유형 선택
+                  {parentLockEnabled && <Lock size={12} className="text-amber-400" />}
                 </label>
-                <button 
-                  onClick={() => { setShowSettings(true); setSettingsTab('quiz'); }}
-                  className="text-[10px] bg-slate-800 px-2 py-1 rounded text-slate-400 hover:text-white transition-colors"
-                >
-                  설정에서 변경
-                </button>
+                {parentLockEnabled && (
+                  <span className="text-[10px] bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded text-amber-400">
+                    🔒 잠금됨
+                  </span>
+                )}
               </div>
               <div className="flex flex-wrap gap-2">
                 {[
@@ -1878,10 +1924,26 @@ export default function Home() {
                   { id: 'ESSAY', label: '서술형', emoji: '📝' },
                   { id: 'CSAT', label: '수능형', emoji: '🎓' },
                   { id: 'TRUE_FALSE', label: 'O/X', emoji: '⭕' },
-                ].filter(t => selectedTypes.includes(t.id)).map((type) => (
-                  <div key={type.id} className="px-3 py-2 bg-sky-500/10 border border-sky-500/30 rounded-lg text-sm font-bold text-sky-300 flex items-center gap-1.5 shadow-sm">
+                ].map((type) => (
+                  <button
+                    key={type.id}
+                    onClick={() => {
+                      if (parentLockEnabled) return;
+                      if (selectedTypes.includes(type.id)) {
+                        if (selectedTypes.length > 1) setSelectedTypes(selectedTypes.filter(t => t !== type.id));
+                      } else {
+                        setSelectedTypes([...selectedTypes, type.id]);
+                      }
+                    }}
+                    className={`px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all border ${
+                      selectedTypes.includes(type.id)
+                        ? 'bg-sky-500/20 border-sky-500/40 text-sky-300 shadow-sm'
+                        : 'bg-slate-800/50 border-slate-700 text-slate-500 hover:border-slate-600'
+                    } ${parentLockEnabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer active:scale-95'}`}
+                  >
                     <span>{type.emoji}</span> {type.label}
-                  </div>
+                    {selectedTypes.includes(type.id) && <CheckCircle2 size={14} className="text-sky-400" />}
+                  </button>
                 ))}
               </div>
             </div>
