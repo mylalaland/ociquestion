@@ -193,7 +193,10 @@ export default function SettingsModal(props: SettingsModalProps) {
         </div>
 
         {/* Tabs */}
-        <div className="border-b border-slate-800 relative">
+        <div 
+          className="border-b border-slate-800 relative"
+          onTouchMove={(e) => e.stopPropagation()}
+        >
           {/* Left arrow hint */}
           {canScrollLeft && (
             <button 
@@ -216,6 +219,7 @@ export default function SettingsModal(props: SettingsModalProps) {
             ref={tabsRef}
             onScroll={checkScroll}
             className="flex px-2 overflow-x-auto hide-scrollbar"
+            style={{ touchAction: 'pan-x', overscrollBehavior: 'contain' }}
           >
             {tabs.map(tab => (
               <button
