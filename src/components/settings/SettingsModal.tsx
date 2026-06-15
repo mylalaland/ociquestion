@@ -151,8 +151,8 @@ export default function SettingsModal(props: SettingsModalProps) {
   const Toggle = ({ value, onChange, label, locked }: { value: boolean; onChange: (v: boolean) => void; label: string; locked?: boolean }) => (
     <div className="flex items-center justify-between py-2">
       <span className="text-sm text-slate-300">{label}</span>
-      <motion.button
-        onTap={() => !locked && onChange(!value)}
+      <button
+        onClick={() => !locked && onChange(!value)}
         disabled={locked}
         className={`relative w-12 h-6 rounded-full transition-colors ${value ? 'bg-sky-500' : 'bg-slate-700'} ${locked ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
@@ -161,7 +161,7 @@ export default function SettingsModal(props: SettingsModalProps) {
           animate={{ left: value ? '26px' : '2px' }}
           transition={{ type: 'spring', stiffness: 500, damping: 30 }}
         />
-      </motion.button>
+      </button>
     </div>
   );
 
@@ -194,13 +194,23 @@ export default function SettingsModal(props: SettingsModalProps) {
 
         {/* Tabs */}
         <div className="border-b border-slate-800 relative">
-          {/* Left fade hint */}
+          {/* Left arrow hint */}
           {canScrollLeft && (
-            <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-slate-900 to-transparent z-10 pointer-events-none" />
+            <button 
+              onClick={() => tabsRef.current?.scrollBy({ left: -120, behavior: 'smooth' })}
+              className="absolute left-0 top-0 bottom-0 z-10 flex items-center px-1 bg-slate-900/80 hover:bg-slate-900 transition-colors border-r border-slate-700/50"
+            >
+              <ChevronLeft size={16} className="text-sky-400" />
+            </button>
           )}
-          {/* Right fade hint */}
+          {/* Right arrow hint */}
           {canScrollRight && (
-            <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-slate-900 to-transparent z-10 pointer-events-none" />
+            <button 
+              onClick={() => tabsRef.current?.scrollBy({ left: 120, behavior: 'smooth' })}
+              className="absolute right-0 top-0 bottom-0 z-10 flex items-center px-1 bg-slate-900/80 hover:bg-slate-900 transition-colors border-l border-slate-700/50"
+            >
+              <ChevronRight size={16} className="text-sky-400" />
+            </button>
           )}
           <div 
             ref={tabsRef}
@@ -239,9 +249,9 @@ export default function SettingsModal(props: SettingsModalProps) {
                     { id: 'CSAT', label: '수능형 (논리 추론)', emoji: '🎓' },
                     { id: 'TRUE_FALSE', label: 'O/X (참/거짓)', emoji: '⭕' },
                   ].map(type => (
-                    <motion.button
+                    <button
                       key={type.id}
-                      onTap={() => {
+                      onClick={() => {
                         if (isLocked) return;
                         if (props.quizTypes.includes(type.id)) {
                           if (props.quizTypes.length > 1) props.setQuizTypes(props.quizTypes.filter(t => t !== type.id));
@@ -257,7 +267,7 @@ export default function SettingsModal(props: SettingsModalProps) {
                     >
                       <span>{type.emoji} {type.label}</span>
                       {props.quizTypes.includes(type.id) && <Check size={14} className="text-sky-400" />}
-                    </motion.button>
+                    </button>
                   ))}
                 </div>
               </div>

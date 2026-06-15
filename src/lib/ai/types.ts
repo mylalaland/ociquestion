@@ -97,9 +97,9 @@ export interface ThemeOption {
 
 export const THEME_OPTIONS: ThemeOption[] = [
   { id: 'dark', name: '다크 모드', emoji: '🌙', description: '기본 어두운 테마', preview: 'linear-gradient(135deg, #0f172a, #1e293b)' },
-  { id: 'light', name: '밝은 모드', emoji: '☀️', description: '깔끔한 밝은 테마', preview: 'linear-gradient(135deg, #f8fafc, #e2e8f0)' },
-  { id: 'yellow', name: '병아리 모드', emoji: '🐥', description: '따뜻한 크림 톤', preview: 'linear-gradient(135deg, #fef9c3, #fde68a)' },
-  { id: 'cat', name: '고양이 모드', emoji: '🐱', description: '귀여운 크림오렌지 테마', preview: 'linear-gradient(135deg, #ffedd5, #fdba74)' },
+  { id: 'light', name: '라이트 모드', emoji: '☀️', description: '깔끔한 밝은 테마', preview: 'linear-gradient(135deg, #f8fafc, #e2e8f0)' },
+  { id: 'yellow', name: '크림 모드', emoji: '🍯', description: '따뜻한 크림 톤', preview: 'linear-gradient(135deg, #fef9c3, #fde68a)' },
+  { id: 'cat', name: '코랄 모드', emoji: '🌸', description: '부드러운 코랄 핑크 테마', preview: 'linear-gradient(135deg, #ffedd5, #fdba74)' },
 ];
 
 // Mascot options for character customization
