@@ -6,6 +6,23 @@ import { X, BookOpen, Trophy, Palette, Users, Shield, Plus, Pencil, Trash2, Chec
 import { PointConfig, DEFAULT_POINT_CONFIG, AdvancedPointSettings, DEFAULT_ADVANCED_POINT_SETTINGS, ThemeId, THEME_OPTIONS, UserProfile } from '@/lib/ai/types';
 import { getAllUsers, createUser, updateUserName, deleteUser, getActiveUserId, setActiveUserId, ensureDefaultUser } from '@/lib/storage/user-store';
 
+// Toggle component defined OUTSIDE SettingsModal to prevent re-creation on re-render
+const Toggle = ({ value, onChange, label, locked }: { value: boolean; onChange: (v: boolean) => void; label: string; locked?: boolean }) => (
+  <div className="flex items-center justify-between py-2">
+    <span className="text-sm text-slate-300">{label}</span>
+    <button
+      onClick={() => !locked && onChange(!value)}
+      disabled={locked}
+      className={`relative w-12 h-6 rounded-full transition-colors ${value ? 'bg-sky-500' : 'bg-slate-700'} ${locked ? 'opacity-50 cursor-not-allowed' : ''}`}
+    >
+      <div
+        className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-[left] duration-200 ease-in-out"
+        style={{ left: value ? '26px' : '2px' }}
+      />
+    </button>
+  </div>
+);
+
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -148,22 +165,7 @@ export default function SettingsModal(props: SettingsModalProps) {
     setEditName('');
   };
 
-  const Toggle = ({ value, onChange, label, locked }: { value: boolean; onChange: (v: boolean) => void; label: string; locked?: boolean }) => (
-    <div className="flex items-center justify-between py-2">
-      <span className="text-sm text-slate-300">{label}</span>
-      <button
-        onClick={() => !locked && onChange(!value)}
-        disabled={locked}
-        className={`relative w-12 h-6 rounded-full transition-colors ${value ? 'bg-sky-500' : 'bg-slate-700'} ${locked ? 'opacity-50 cursor-not-allowed' : ''}`}
-      >
-        <motion.div
-          className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow"
-          animate={{ left: value ? '26px' : '2px' }}
-          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-        />
-      </button>
-    </div>
-  );
+
 
   const isLocked = props.parentLockEnabled && !adminUnlocked;
 
