@@ -207,11 +207,12 @@ export default function QuizView({
     
     setUserAnswers(prev => ({ ...prev, [qId]: answer.trim() }));
     
-    // Short answer auto-grades (exact match)
-    const correct = answer.trim() === q.correctAnswer.trim();
-    setIsCorrect(prev => ({ ...prev, [qId]: correct }));
-    if (correct) onCorrect(qId);
-    else onWrong(qId);
+    // Exact match → auto correct. Otherwise → let user self-grade (like essay)
+    if (answer.trim() === q.correctAnswer.trim()) {
+      setIsCorrect(prev => ({ ...prev, [qId]: true }));
+      onCorrect(qId);
+    }
+    // If not exact match, isCorrect stays undefined → user self-grades
   };
 
   const handleEssaySubmit = (qId: string) => {
@@ -477,10 +478,10 @@ export default function QuizView({
             {q.type === 'SHORT_ANSWER' && (!q.options || q.options.length === 0) && (
               <div className="space-y-4">
                 {answered ? (
-                    <div className={`p-4 rounded-xl border ${isCorrect[q.id] === true ? 'border-emerald-500 bg-emerald-500/10 text-emerald-100' : 'border-rose-500 bg-rose-500/10 text-rose-100'}`}>
-                      <div className={`flex items-center gap-2 mb-4 font-bold ${isCorrect[q.id] === true ? 'text-emerald-400' : 'text-rose-400'}`}>
-                         {isCorrect[q.id] === true ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
-                         {isCorrect[q.id] === true ? '정답입니다! 🎉' : '오답입니다. 모범 답안을 확인하세요.'}
+                    <div className={`p-4 rounded-xl border ${isCorrect[q.id] === true ? 'border-emerald-500 bg-emerald-500/10 text-emerald-100' : isCorrect[q.id] === false ? 'border-rose-500 bg-rose-500/10 text-rose-100' : 'border-sky-500 bg-sky-500/10 text-slate-200'}`}>
+                      <div className={`flex items-center gap-2 mb-4 font-bold ${isCorrect[q.id] === true ? 'text-emerald-400' : isCorrect[q.id] === false ? 'text-rose-400' : 'text-sky-400'}`}>
+                         {isCorrect[q.id] === true ? <CheckCircle2 size={18} /> : isCorrect[q.id] === false ? <XCircle size={18} /> : <CheckCircle2 size={18} />}
+                         {isCorrect[q.id] === true ? '정답입니다! 🎉' : isCorrect[q.id] === false ? '오답입니다.' : '제출 완료! 모범 답안과 비교하여 스스로 채점해주세요.'}
                       </div>
                       <div className="space-y-3 text-sm">
                         {showMyAnswers && (
@@ -494,15 +495,27 @@ export default function QuizView({
                           <p className="bg-emerald-500/10 p-3 rounded-lg border border-emerald-500/30 text-emerald-100">{q.correctAnswer}</p>
                         </div>
                       </div>
+                      {isCorrect[q.id] === undefined && !isFinalized && !reviewMode && (
+                        <div className="mt-4 pt-4 border-t border-sky-500/20 flex gap-2 justify-end">
+                          <button onClick={() => handleSelfGrade(q.id, true)}
+                            className="px-4 py-2 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 rounded-lg text-sm font-bold transition-colors">
+                            O 맞게 썼음 (정답)
+                          </button>
+                          <button onClick={() => handleSelfGrade(q.id, false)}
+                            className="px-4 py-2 bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 rounded-lg text-sm font-bold transition-colors">
+                            X 틀렸음 (오답)
+                          </button>
+                        </div>
+                      )}
                     </div>
                 ) : (
-                  <div className="flex gap-3">
+                  <div className="space-y-3">
                     <input type="text" placeholder="짧게 답을 적어주세요..."
                       value={shortAnswerInputs[q.id] || ''}
                       onChange={(e) => setShortAnswerInputs(prev => ({ ...prev, [q.id]: e.target.value }))}
                       onKeyDown={(e) => { if (e.key === 'Enter') handleShortAnswerSubmit(q.id, q); }}
-                      className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-                    <button className="btn-premium px-6 py-2 rounded-xl text-sm font-bold whitespace-nowrap disabled:opacity-50"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                    <button className="btn-premium w-full px-6 py-3 rounded-xl text-sm font-bold whitespace-nowrap disabled:opacity-50"
                       onClick={() => handleShortAnswerSubmit(q.id, q)}
                       disabled={isFinalized || !shortAnswerInputs[q.id]?.trim()}>
                       답안 제출

@@ -1810,14 +1810,28 @@ export default function Home() {
                     {files.length > 0 && (
                       <div className="flex flex-col gap-3 mt-4 w-full">
                         {files.map((f, i) => (
-                          <div key={i} className="px-4 py-3 bg-slate-900/50 rounded-xl text-sm border border-slate-700 flex flex-wrap items-center gap-3 justify-between">
-                             <div className="flex items-center gap-2 text-slate-300">
-                               <FileText size={14} className="text-sky-400" />
-                               {f.file.name.slice(0, 20)}{f.file.name.length > 20 ? '...' : ''}
+                          <div key={i} className="px-3 py-3 bg-slate-900/50 rounded-xl text-sm border border-slate-700 flex items-center gap-3">
+                             {/* Image thumbnail or file icon */}
+                             {f.file.type.startsWith('image/') ? (
+                               <img 
+                                 src={URL.createObjectURL(f.file)} 
+                                 alt={f.file.name}
+                                 className="w-14 h-14 object-cover rounded-lg border border-slate-600 flex-shrink-0"
+                               />
+                             ) : (
+                               <div className="w-14 h-14 bg-slate-800 rounded-lg border border-slate-600 flex items-center justify-center flex-shrink-0">
+                                 <FileText size={20} className="text-sky-400" />
+                               </div>
+                             )}
+                             <div className="flex-1 min-w-0">
+                               <p className="text-slate-300 truncate text-xs">
+                                 {f.file.type.startsWith('image/') ? `📷 사진 ${i + 1}` : f.file.name.slice(0, 20)}{!f.file.type.startsWith('image/') && f.file.name.length > 20 ? '...' : ''}
+                               </p>
+                               <p className="text-slate-500 text-[10px]">{(f.file.size / 1024).toFixed(0)} KB</p>
                              </div>
                              
                              {f.file.type === 'application/pdf' && (
-                               <div className="flex gap-1.5 items-center bg-slate-800/80 px-3 py-1.5 rounded-lg ml-auto border border-slate-700 shadow-inner">
+                               <div className="flex gap-1.5 items-center bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700 shadow-inner">
                                   <span className="text-xs font-bold text-slate-400">PDF 구간</span>
                                   <input 
                                     type="number" 
@@ -1848,7 +1862,7 @@ export default function Home() {
                              )}
 
                              <button 
-                              className="text-red-400 p-1 hover:bg-red-400/20 rounded ml-auto flex-shrink-0" 
+                              className="text-red-400 p-1 hover:bg-red-400/20 rounded flex-shrink-0" 
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setFiles(prev => prev.filter((_, idx) => idx !== i));
