@@ -102,11 +102,29 @@ export const THEME_OPTIONS: ThemeOption[] = [
   { id: 'cat', name: '고양이 모드', emoji: '🐱', description: '귀여운 크림오렌지 테마', preview: 'linear-gradient(135deg, #ffedd5, #fdba74)' },
 ];
 
+// Mascot options for character customization
+export interface MascotOption {
+  id: string;
+  name: string;
+  emoji: string;
+  imagePath: string;
+}
+
+export const MASCOT_OPTIONS: MascotOption[] = [
+  { id: 'owl', name: '부엉이', emoji: '🦉', imagePath: '/images/light_mascot.png' },
+  { id: 'chick', name: '병아리', emoji: '🐥', imagePath: '/images/yellow_mascot.png' },
+  { id: 'cat', name: '고양이', emoji: '🐱', imagePath: '/images/cat_mascot.png' },
+  { id: 'rabbit', name: '토끼', emoji: '🐰', imagePath: '/images/rabbit_mascot.png' },
+  { id: 'bear', name: '곰돌이', emoji: '🐻', imagePath: '/images/bear_mascot.png' },
+  { id: 'penguin', name: '펭귄', emoji: '🐧', imagePath: '/images/penguin_mascot.png' },
+];
+
 // User profile for multi-user support
 export interface UserProfile {
   id: string;
   name: string;
   avatar: string; // emoji
+  mascotId?: string; // selected mascot character id
   createdAt: string;
 }
 

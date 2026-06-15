@@ -7,7 +7,7 @@ import { GeminiProvider } from '@/lib/ai/gemini-provider';
 import { OpenAIProvider } from '@/lib/ai/openai-provider';
 import { ClaudeProvider } from '@/lib/ai/claude-provider';
 import { extractTextFromPdf } from '@/lib/pdf/pdf-processor';
-import { QuizResult, PointConfig, DEFAULT_POINT_CONFIG, AdvancedPointSettings, DEFAULT_ADVANCED_POINT_SETTINGS, ThemeId } from '@/lib/ai/types';
+import { QuizResult, PointConfig, DEFAULT_POINT_CONFIG, AdvancedPointSettings, DEFAULT_ADVANCED_POINT_SETTINGS, ThemeId, MASCOT_OPTIONS } from '@/lib/ai/types';
 import QuizView from '@/components/quiz/QuizView';
 import QuizResultScreen from '@/components/quiz/QuizResultScreen';
 import FullTextHighlight from '@/components/viewer/FullTextHighlight';
@@ -17,7 +17,7 @@ import SettingsModal, { SettingsTab } from '@/components/settings/SettingsModal'
 import BonusRoulette from '@/components/bonus/BonusRoulette';
 import BonusCardPick from '@/components/bonus/BonusCardPick';
 import { saveQuizHistory, getAllQuizHistory, QuizHistory, PointLog, savePointLog, getPointLogs } from '@/lib/storage/history-store';
-import { ensureDefaultUser, getActiveUserId, setActiveUserId, userKey } from '@/lib/storage/user-store';
+import { ensureDefaultUser, getActiveUserId, setActiveUserId, userKey, getUserMascot, updateUserMascot } from '@/lib/storage/user-store';
 
 // ========== Utility: SHA-256 hash ==========
 async function sha256(message: string): Promise<string> {
@@ -57,7 +57,7 @@ export default function Home() {
   const [apiKeyGemini, setApiKeyGemini] = useState('');
   const [apiKeyOpenai, setApiKeyOpenai] = useState('');
   const [apiKeyClaude, setApiKeyClaude] = useState('');
-  const [modelGemini, setModelGemini] = useState('gemini-3.5-flash');
+  const [modelGemini, setModelGemini] = useState('gemini-2.0-flash');
   const [modelOpenai, setModelOpenai] = useState('gpt-4o-mini');
   const [modelClaude, setModelClaude] = useState('claude-3-5-sonnet-latest');
   const [discoveredGemini, setDiscoveredGemini] = useState<string[]>([]);
@@ -105,6 +105,8 @@ export default function Home() {
   
   // ─── Multi-User ───
   const [activeUser, setActiveUser] = useState('default');
+  const [activeMascot, setActiveMascot] = useState('owl');
+  const [showMascotPicker, setShowMascotPicker] = useState(false);
   
   // ─── Bonus ───
   const [showBonusRoulette, setShowBonusRoulette] = useState(false);
@@ -182,7 +184,7 @@ export default function Home() {
     if (savedKeyOpenai) setApiKeyOpenai(savedKeyOpenai);
     if (savedKeyClaude) setApiKeyClaude(savedKeyClaude);
 
-    const savedModelGemini = localStorage.getItem('OCI_QUIZ_MODEL_GEMINI') || savedModel || 'gemini-3.5-flash';
+    const savedModelGemini = localStorage.getItem('OCI_QUIZ_MODEL_GEMINI') || savedModel || 'gemini-2.0-flash';
     const savedModelOpenai = localStorage.getItem('OCI_QUIZ_MODEL_OPENAI') || 'gpt-4o-mini';
     const savedModelClaude = localStorage.getItem('OCI_QUIZ_MODEL_CLAUDE') || 'claude-3-5-sonnet-latest';
     if (savedModelGemini) setModelGemini(savedModelGemini);
@@ -255,6 +257,7 @@ export default function Home() {
     // Initialize multi-user
     ensureDefaultUser();
     setActiveUser(getActiveUserId());
+    setActiveMascot(getUserMascot());
 
     setPointLogs(getPointLogs());
   }, []);
@@ -391,7 +394,7 @@ export default function Home() {
         setDiscoveredGemini(models);
         
         // Recommend/select default Flash
-        const defaultFlash = models.find(m => m === 'gemini-3.5-flash') || models.find(m => m.includes('3.5-flash')) || models.find(m => m === 'gemini-flash-latest');
+        const defaultFlash = models.find(m => m === 'gemini-2.0-flash') || models.find(m => m.includes('2.0-flash')) || models.find(m => m.includes('2.5-flash')) || models.find(m => m === 'gemini-flash-latest');
         if (defaultFlash) {
           setModelGemini(defaultFlash);
           setSelectedModel(defaultFlash);
@@ -1627,7 +1630,7 @@ export default function Home() {
           }}
           onResetAll={handleFactoryReset}
           activeUserId={activeUser}
-          onSwitchUser={(id) => { setActiveUserId(id); setActiveUser(id); }}
+          onSwitchUser={(id) => { setActiveUserId(id); setActiveUser(id); setActiveMascot(getUserMascot(id)); }}
         />
         {showBonusRoulette && (
           <BonusRoulette
@@ -1651,6 +1654,66 @@ export default function Home() {
             onClose={() => setShowCamera(false)} 
           />
         )}
+
+        {/* Mascot Picker Modal */}
+        {showMascotPicker && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+            onPointerDown={(e) => { if (e.target === e.currentTarget) setShowMascotPicker(false); }}
+          >
+            <motion.div
+              initial={{ y: 100, scale: 0.95 }}
+              animate={{ y: 0, scale: 1 }}
+              exit={{ y: 100, scale: 0.95 }}
+              className="w-full max-w-sm bg-slate-900 rounded-t-[28px] sm:rounded-[28px] border border-slate-700/50 shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                <h3 className="text-lg font-black text-white">🎨 내 캐릭터 선택</h3>
+                <button onClick={() => setShowMascotPicker(false)} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
+                  <X size={18} className="text-slate-400" />
+                </button>
+              </div>
+              <div className="p-4">
+                <p className="text-xs text-slate-400 mb-4 text-center">원하는 캐릭터를 선택하세요! 이 기기에서 나만 적용돼요 🌟</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {MASCOT_OPTIONS.map((mascot) => (
+                    <motion.button
+                      key={mascot.id}
+                      whileTap={{ scale: 0.92 }}
+                      onClick={() => {
+                        setActiveMascot(mascot.id);
+                        updateUserMascot(activeUser, mascot.id);
+                        setShowMascotPicker(false);
+                      }}
+                      className={`flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-all ${
+                        activeMascot === mascot.id
+                          ? 'border-sky-500 bg-sky-500/10 shadow-lg shadow-sky-500/10'
+                          : 'border-slate-700 hover:border-slate-500 bg-slate-800/50'
+                      }`}
+                    >
+                      <img 
+                        src={mascot.imagePath} 
+                        alt={mascot.name} 
+                        className="w-16 h-16 object-contain"
+                        style={{ background: 'transparent' }}
+                      />
+                      <span className="text-xs font-bold text-slate-300">
+                        {mascot.emoji} {mascot.name}
+                      </span>
+                      {activeMascot === mascot.id && (
+                        <span className="text-[10px] text-sky-400 font-bold">✓ 사용 중</span>
+                      )}
+                    </motion.button>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* ── Mascot & Hero Section ── */}
@@ -1659,34 +1722,28 @@ export default function Home() {
         animate={{ opacity: 1, y: 0 }}
         className="max-w-4xl w-full text-center space-y-6 mt-6 px-4 flex flex-col items-center relative"
       >
-        {/* Theme Mascots */}
-        {theme === 'cat' && (
-          <motion.img 
-            initial={{ scale: 0.8, opacity: 0, rotate: -10 }}
-            animate={{ scale: 1, opacity: 1, rotate: 0 }}
-            src="/images/cat_mascot.png" 
-            alt="Cat Mascot" 
-            className="w-32 h-32 md:w-40 md:h-40 object-contain drop-shadow-xl z-10 -mb-4"
-          />
-        )}
-        {theme === 'light' && (
-          <motion.img 
-            initial={{ scale: 0.8, opacity: 0, y: -20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            src="/images/light_mascot.png" 
-            alt="Owl Mascot" 
-            className="w-32 h-32 md:w-40 md:h-40 object-contain drop-shadow-xl z-10 -mb-4"
-          />
-        )}
-        {theme === 'yellow' && (
-          <motion.img 
-            initial={{ scale: 0.8, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            src="/images/yellow_mascot.png" 
-            alt="Chick Mascot" 
-            className="w-32 h-32 md:w-40 md:h-40 object-contain drop-shadow-xl z-10 -mb-4"
-          />
-        )}
+        {/* User-selected Mascot (tap to change) */}
+        {(() => {
+          const mascot = MASCOT_OPTIONS.find(m => m.id === activeMascot) || MASCOT_OPTIONS[0];
+          return (
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="relative cursor-pointer group"
+              onClick={() => setShowMascotPicker(true)}
+            >
+              <img 
+                src={mascot.imagePath}
+                alt={mascot.name}
+                className="w-32 h-32 md:w-40 md:h-40 object-contain drop-shadow-xl z-10 -mb-4"
+                style={{ background: 'transparent' }}
+              />
+              <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity bg-slate-800/90 text-white text-[10px] px-2 py-1 rounded-full whitespace-nowrap border border-slate-600">
+                탭하여 캐릭터 변경
+              </div>
+            </motion.div>
+          );
+        })()}
 
         <div className="inline-flex items-center gap-2 px-4 py-2 glass rounded-full text-sm text-sky-400 mb-2 relative z-20 bg-slate-900/50">
           <BrainCircuit size={16} />

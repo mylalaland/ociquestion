@@ -193,25 +193,17 @@ export default function SettingsModal(props: SettingsModalProps) {
         </div>
 
         {/* Tabs */}
-        <div className="relative border-b border-slate-800">
-          {canScrollLeft && (
-            <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-slate-900 to-transparent z-10 flex items-center justify-start">
-              <button onClick={() => tabsRef.current?.scrollBy({ left: -100, behavior: 'smooth' })} className="p-1 text-slate-400 hover:text-white">
-                <ChevronLeft size={16} />
-              </button>
-            </div>
-          )}
+        <div className="border-b border-slate-800">
           <div 
             ref={tabsRef}
             onScroll={checkScroll}
-            className="flex overflow-x-auto px-2 custom-scrollbar-hide"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            className="flex px-2"
           >
             {tabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 px-4 py-3 text-sm font-bold whitespace-nowrap transition-colors border-b-2 ${
+                className={`flex items-center gap-1.5 px-3 py-3 text-xs sm:text-sm font-bold whitespace-nowrap transition-colors border-b-2 flex-1 justify-center ${
                   activeTab === tab.id
                     ? 'border-sky-500 text-sky-400'
                     : 'border-transparent text-slate-500 hover:text-slate-300'
@@ -222,13 +214,6 @@ export default function SettingsModal(props: SettingsModalProps) {
               </button>
             ))}
           </div>
-          {canScrollRight && (
-            <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-slate-900 to-transparent z-10 flex items-center justify-end">
-              <button onClick={() => tabsRef.current?.scrollBy({ left: 100, behavior: 'smooth' })} className="p-1 text-slate-400 hover:text-white">
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Content */}

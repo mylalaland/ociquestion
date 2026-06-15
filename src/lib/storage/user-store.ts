@@ -85,3 +85,21 @@ export function userKey(key: string, userId?: string): string {
   const uid = userId || getActiveUserId();
   return `${key}_${uid}`;
 }
+
+// Update the mascot for a specific user
+export function updateUserMascot(userId: string, mascotId: string): void {
+  const users = getAllUsers();
+  const idx = users.findIndex(u => u.id === userId);
+  if (idx >= 0) {
+    users[idx].mascotId = mascotId;
+    localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
+  }
+}
+
+// Get the mascot for a specific user (default: 'owl')
+export function getUserMascot(userId?: string): string {
+  const uid = userId || getActiveUserId();
+  const users = getAllUsers();
+  const user = users.find(u => u.id === uid);
+  return user?.mascotId || 'owl';
+}
