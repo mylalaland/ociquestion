@@ -193,17 +193,25 @@ export default function SettingsModal(props: SettingsModalProps) {
         </div>
 
         {/* Tabs */}
-        <div className="border-b border-slate-800">
+        <div className="border-b border-slate-800 relative">
+          {/* Left fade hint */}
+          {canScrollLeft && (
+            <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-slate-900 to-transparent z-10 pointer-events-none" />
+          )}
+          {/* Right fade hint */}
+          {canScrollRight && (
+            <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-slate-900 to-transparent z-10 pointer-events-none" />
+          )}
           <div 
             ref={tabsRef}
             onScroll={checkScroll}
-            className="flex px-2"
+            className="flex px-2 overflow-x-auto hide-scrollbar"
           >
             {tabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 px-3 py-3 text-xs sm:text-sm font-bold whitespace-nowrap transition-colors border-b-2 flex-1 justify-center ${
+                className={`flex items-center gap-1.5 px-4 py-3 text-xs sm:text-sm font-bold whitespace-nowrap transition-colors border-b-2 ${
                   activeTab === tab.id
                     ? 'border-sky-500 text-sky-400'
                     : 'border-transparent text-slate-500 hover:text-slate-300'
